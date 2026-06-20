@@ -17,7 +17,7 @@ class PositionCalculatorWm
   final ValueNotifier<double?> _rr = ValueNotifier(0.0);
 
   final accountController = TextEditingController();
-  final riskController = TextEditingController(text: '1');
+  final riskController = TextEditingController();
   final entryController = TextEditingController();
   final stopController = TextEditingController();
   final takeProfitController = TextEditingController();
@@ -38,6 +38,7 @@ class PositionCalculatorWm
 
     _loadAccountValue();
     accountController.addListener(_onAccountChanged);
+    riskController.addListener(_onRiskChanged);
   }
 
   @override
@@ -45,6 +46,7 @@ class PositionCalculatorWm
     accountController.dispose();
     accountController.removeListener(_onAccountChanged);
     riskController.dispose();
+    riskController.removeListener(_onRiskChanged);
     entryController.dispose();
     stopController.dispose();
     takeProfitController.dispose();
@@ -55,13 +57,19 @@ class PositionCalculatorWm
   }
 
   Future<void> _loadAccountValue() async {
-    final value = await model.getValue();
+    final depositValue = await model.getDepositValue();
+    final riskValue = await model.getRiskValue();
 
-    accountController.text = value;
+    accountController.text = depositValue;
+    riskController.text = riskValue;
   }
 
   void _onAccountChanged() {
-    model.setValue(accountController.text);
+    model.setDepositValue(accountController.text);
+  }
+
+  void _onRiskChanged() {
+    model.setRiskValue(riskController.text);
   }
 
   void calculate() {
@@ -75,7 +83,7 @@ class PositionCalculatorWm
     final closeCommissionPercent =
         double.tryParse(closeCommissionController.text) ?? 0;
 
-    if (accountSize <= 0 || entry <= 0 || stop <= 0 || takeProfit <= 0) {
+    if (accountSize <= 0 || entry <= 0 || stop <= 0) {
       return;
     }
 

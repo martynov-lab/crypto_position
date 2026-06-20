@@ -1,7 +1,6 @@
 import 'package:crypto_position/src/position_calculator_wm.dart';
 import 'package:crypto_position/src/trade_direction.dart';
 import 'package:elementary/elementary.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
@@ -47,11 +46,51 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
             ),
             const SizedBox(height: 24),
             const Divider(),
-            buildResult('Риск (USD)', wm.riskUsd),
-            buildResult('Размер позиции (Crypto)', wm.positionSizeCrypto),
-            buildResult('Размер позиции (USD)', wm.positionSizeUsd),
-            buildResult('Потенциальная прибыль', wm.profitUsd),
-            buildResult('Risk / Reward', wm.rr),
+            ListTile(
+              title: Text('Риск (USD)'),
+              trailing: ValueListenableBuilder(
+                valueListenable: wm.riskUsd,
+                builder: (context, value, child) {
+                  return Text(value == null ? '-' : value.toStringAsFixed(2));
+                },
+              ),
+            ),
+            ListTile(
+              title: Text('Размер позиции (Crypto)'),
+              trailing: ValueListenableBuilder(
+                valueListenable: wm.positionSizeCrypto,
+                builder: (context, value, child) {
+                  return Text(value == null ? '-' : value.toStringAsFixed(2));
+                },
+              ),
+            ),
+            ListTile(
+              title: Text('Размер позиции (USD)'),
+              trailing: ValueListenableBuilder(
+                valueListenable: wm.positionSizeUsd,
+                builder: (context, value, child) {
+                  return Text(value == null ? '-' : value.toStringAsFixed(2));
+                },
+              ),
+            ),
+            ListTile(
+              title: Text('Потенциальная прибыль'),
+              trailing: ValueListenableBuilder(
+                valueListenable: wm.profitUsd,
+                builder: (context, value, child) {
+                  return Text(value == null ? '-' : value.toStringAsFixed(2));
+                },
+              ),
+            ),
+            ListTile(
+              title: Text('Risk / Reward'),
+              trailing: ValueListenableBuilder(
+                valueListenable: wm.rr,
+                builder: (context, value, child) {
+                  return Text(value == null ? '-' : value.toStringAsFixed(2));
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -69,18 +108,6 @@ Widget buildField(String label, TextEditingController controller) {
         labelText: label,
         border: const OutlineInputBorder(),
       ),
-    ),
-  );
-}
-
-Widget buildResult(String label, ValueListenable<double?> listenable) {
-  return ListTile(
-    title: Text(label),
-    trailing: ValueListenableBuilder(
-      valueListenable: listenable,
-      builder: (context, value, child) {
-        return Text(value == null ? '-' : value.toStringAsFixed(2));
-      },
     ),
   );
 }
