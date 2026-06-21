@@ -1,1 +1,0 @@
-enum TradeDirection { long, short }

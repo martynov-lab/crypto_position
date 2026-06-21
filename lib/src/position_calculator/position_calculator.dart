@@ -1,5 +1,4 @@
-import 'package:crypto_position/src/position_calculator_wm.dart';
-import 'package:crypto_position/src/trade_direction.dart';
+import 'package:crypto_position/src/position_calculator/position_calculator_wm.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
 
@@ -15,19 +14,6 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            SegmentedButton<TradeDirection>(
-              segments: const [
-                ButtonSegment(value: TradeDirection.long, label: Text('LONG')),
-                ButtonSegment(
-                  value: TradeDirection.short,
-                  label: Text('SHORT'),
-                ),
-              ],
-              selected: {wm.direction},
-              onSelectionChanged: (value) {
-                wm.direction = value.first;
-              },
-            ),
             const SizedBox(height: 16),
             buildField('Размер счёта (USD)', wm.accountController),
             buildField('Риск (%)', wm.riskController),

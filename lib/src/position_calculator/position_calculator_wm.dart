@@ -1,6 +1,5 @@
-import 'package:crypto_position/src/position_calculator.dart';
-import 'package:crypto_position/src/position_calculator_model.dart';
-import 'package:crypto_position/src/trade_direction.dart';
+import 'package:crypto_position/src/position_calculator/position_calculator.dart';
+import 'package:crypto_position/src/position_calculator/position_calculator_model.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,8 +7,6 @@ import 'package:provider/provider.dart';
 
 class PositionCalculatorWm
     extends WidgetModel<PositionCalculator, PositionCalculatorModel> {
-  TradeDirection direction = TradeDirection.long;
-
   final ValueNotifier<double?> _positionSizeCrypto = ValueNotifier(0.0);
   final ValueNotifier<double?> _positionSizeUsd = ValueNotifier(0.0);
   final ValueNotifier<double?> _riskUsd = ValueNotifier(0.0);
