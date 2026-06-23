@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class ScaffoldWithNavBar extends StatelessWidget {
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
-  const ScaffoldWithNavBar({super.key, required this.child});
+  const ScaffoldWithNavBar({required this.navigationShell, super.key});
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: child,
+    body: navigationShell,
     bottomNavigationBar: BottomNavigationBar(
       items: const <BottomNavigationBarItem>[
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Main'),
@@ -16,13 +16,9 @@ class ScaffoldWithNavBar extends StatelessWidget {
           icon: Icon(Icons.calculate),
           label: 'Calculator',
         ),
-        // BottomNavigationBarItem(
-        //   icon: Icon(Icons.notification_important_rounded),
-        //   label: 'C Screen',
-        // ),
       ],
       currentIndex: _calculateSelectedIndex(context),
-      onTap: (int idx) => _onItemTapped(idx, context),
+      onTap: (int index) => _onItemTapped(index),
     ),
   );
 
@@ -34,20 +30,13 @@ class ScaffoldWithNavBar extends StatelessWidget {
     if (location.startsWith('/calculator')) {
       return 1;
     }
-    // if (location.startsWith('/c')) {
-    //   return 2;
-    // }
     return 0;
   }
 
-  void _onItemTapped(int index, BuildContext context) {
-    switch (index) {
-      case 0:
-        GoRouter.of(context).go('/');
-      case 1:
-        GoRouter.of(context).go('/calculator');
-      // case 2:
-      //   GoRouter.of(context).go('/c');
-    }
+  void _onItemTapped(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 }

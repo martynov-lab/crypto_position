@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/components/result_tile.dart';
 import 'package:crypto_position/src/position_calculator/position_calculator_wm.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
@@ -32,51 +33,20 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
             ),
             const SizedBox(height: 24),
             const Divider(),
-            ListTile(
-              title: Text('Риск (USD)'),
-              trailing: ValueListenableBuilder(
-                valueListenable: wm.riskUsd,
-                builder: (context, value, child) {
-                  return Text(value == null ? '-' : value.toStringAsFixed(2));
-                },
-              ),
+            ResultTile(listenable: wm.riskUsd, title: 'Риск (USD)'),
+            ResultTile(
+              listenable: wm.positionSizeCrypto,
+              title: 'Размер позиции (Crypto)',
             ),
-            ListTile(
-              title: Text('Размер позиции (Crypto)'),
-              trailing: ValueListenableBuilder(
-                valueListenable: wm.positionSizeCrypto,
-                builder: (context, value, child) {
-                  return Text(value == null ? '-' : value.toStringAsFixed(2));
-                },
-              ),
+            ResultTile(
+              listenable: wm.positionSizeUsd,
+              title: 'Размер позиции (USD)',
             ),
-            ListTile(
-              title: Text('Размер позиции (USD)'),
-              trailing: ValueListenableBuilder(
-                valueListenable: wm.positionSizeUsd,
-                builder: (context, value, child) {
-                  return Text(value == null ? '-' : value.toStringAsFixed(2));
-                },
-              ),
+            ResultTile(
+              listenable: wm.profitUsd,
+              title: 'Потенциальная прибыль',
             ),
-            ListTile(
-              title: Text('Потенциальная прибыль'),
-              trailing: ValueListenableBuilder(
-                valueListenable: wm.profitUsd,
-                builder: (context, value, child) {
-                  return Text(value == null ? '-' : value.toStringAsFixed(2));
-                },
-              ),
-            ),
-            ListTile(
-              title: Text('Risk / Reward'),
-              trailing: ValueListenableBuilder(
-                valueListenable: wm.rr,
-                builder: (context, value, child) {
-                  return Text(value == null ? '-' : value.toStringAsFixed(2));
-                },
-              ),
-            ),
+            ResultTile(listenable: wm.rr, title: 'Risk / Reward'),
           ],
         ),
       ),
