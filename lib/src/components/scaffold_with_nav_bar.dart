@@ -1,5 +1,7 @@
+import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 class ScaffoldWithNavBar extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -7,30 +9,39 @@ class ScaffoldWithNavBar extends StatelessWidget {
   const ScaffoldWithNavBar({required this.navigationShell, super.key});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: navigationShell,
-    bottomNavigationBar: BottomNavigationBar(
-      items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Main'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.calculate),
-          label: 'Calculator',
-        ),
-      ],
-      currentIndex: _calculateSelectedIndex(context),
-      onTap: (int index) => _onItemTapped(index),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final themeNotifier = context.watch<ThemeNotifier>();
+    final isDark = themeNotifier.mode == ThemeMode.dark ||
+        (themeNotifier.mode == ThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
-  static int _calculateSelectedIndex(BuildContext context) {
-    final String location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/')) {
-      return 0;
-    }
-    if (location.startsWith('/calculator')) {
-      return 1;
-    }
-    return 0;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Crypto Position'),
+        actions: [
+          IconButton(
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: themeNotifier.toggle,
+          ),
+        ],
+      ),
+      body: navigationShell,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: navigationShell.currentIndex,
+        onDestinationSelected: _onItemTapped,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Main'),
+          NavigationDestination(
+            icon: Icon(Icons.calculate),
+            label: 'Calculator',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.currency_bitcoin),
+            label: 'Bybit',
+          ),
+        ],
+      ),
+    );
   }
 
   void _onItemTapped(int index) {

@@ -5,6 +5,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+class TakeProfitEntry {
+  final TextEditingController priceController;
+  final TextEditingController percentController;
+
+  TakeProfitEntry({String? price, String? percent})
+    : priceController = TextEditingController(text: price ?? ''),
+      percentController = TextEditingController(text: percent ?? '');
+
+  void dispose() {
+    priceController.dispose();
+    percentController.dispose();
+  }
+}
+
 class PositionCalculatorWm
     extends WidgetModel<PositionCalculator, PositionCalculatorModel> {
   final ValueNotifier<double?> _positionSizeCrypto = ValueNotifier(0.0);
@@ -17,9 +31,11 @@ class PositionCalculatorWm
   final riskController = TextEditingController();
   final entryController = TextEditingController();
   final stopController = TextEditingController();
-  final takeProfitController = TextEditingController();
   final openCommissionController = TextEditingController(text: '0.1');
   final closeCommissionController = TextEditingController(text: '0.1');
+
+  final ValueNotifier<List<TakeProfitEntry>> _takeProfits = ValueNotifier([]);
+  ValueListenable<List<TakeProfitEntry>> get takeProfits => _takeProfits;
 
   ValueListenable<double?> get positionSizeCrypto => _positionSizeCrypto;
   ValueListenable<double?> get positionSizeUsd => _positionSizeUsd;
@@ -32,7 +48,7 @@ class PositionCalculatorWm
   @override
   void initWidgetModel() {
     super.initWidgetModel();
-
+    _takeProfits.value = [TakeProfitEntry(percent: '100')];
     _loadAccountValue();
     accountController.addListener(_onAccountChanged);
     riskController.addListener(_onRiskChanged);
@@ -40,17 +56,30 @@ class PositionCalculatorWm
 
   @override
   void dispose() {
-    accountController.dispose();
     accountController.removeListener(_onAccountChanged);
-    riskController.dispose();
     riskController.removeListener(_onRiskChanged);
+    accountController.dispose();
+    riskController.dispose();
     entryController.dispose();
     stopController.dispose();
-    takeProfitController.dispose();
     openCommissionController.dispose();
     closeCommissionController.dispose();
-
+    for (final tp in _takeProfits.value) {
+      tp.dispose();
+    }
     super.dispose();
+  }
+
+  void addTakeProfit() {
+    _takeProfits.value = [..._takeProfits.value, TakeProfitEntry()];
+  }
+
+  void removeTakeProfit(int index) {
+    if (_takeProfits.value.length <= 1) return;
+    final list = [..._takeProfits.value];
+    list[index].dispose();
+    list.removeAt(index);
+    _takeProfits.value = list;
   }
 
   Future<void> _loadAccountValue() async {
@@ -74,7 +103,6 @@ class PositionCalculatorWm
     final riskPercent = double.tryParse(riskController.text) ?? 0;
     final entry = double.tryParse(entryController.text) ?? 0;
     final stop = double.tryParse(stopController.text) ?? 0;
-    final takeProfit = double.tryParse(takeProfitController.text) ?? 0;
     final openCommissionPercent =
         double.tryParse(openCommissionController.text) ?? 0;
     final closeCommissionPercent =
@@ -92,18 +120,24 @@ class PositionCalculatorWm
         stopDistance + openCommissionPerCoin + stopCommissionPerCoin;
     final sizeCrypto = riskAmount / totalRiskPerCoin;
     final sizeUsd = sizeCrypto * entry;
-    final profitDistance = (takeProfit - entry).abs();
-    final takeProfitCommissionPerCoin =
-        takeProfit * closeCommissionPercent / 100;
-    final netProfitPerCoin =
-        profitDistance - openCommissionPerCoin - takeProfitCommissionPerCoin;
-    final profit = sizeCrypto * netProfitPerCoin;
+
+    double weightedProfit = 0;
+    for (final tp in _takeProfits.value) {
+      final tpPrice = double.tryParse(tp.priceController.text) ?? 0;
+      final tpPercent = double.tryParse(tp.percentController.text) ?? 0;
+      if (tpPrice <= 0 || tpPercent <= 0) continue;
+      final profitDistance = (tpPrice - entry).abs();
+      final tpCommission = tpPrice * closeCommissionPercent / 100;
+      final netProfitPerCoin = profitDistance - openCommissionPerCoin - tpCommission;
+      final portion = tpPercent / 100;
+      weightedProfit += sizeCrypto * portion * netProfitPerCoin;
+    }
 
     _positionSizeCrypto.value = sizeCrypto;
     _positionSizeUsd.value = sizeUsd;
     _riskUsd.value = riskAmount;
-    _profitUsd.value = profit;
-    _rr.value = profit / riskAmount;
+    _profitUsd.value = weightedProfit;
+    _rr.value = riskAmount > 0 ? weightedProfit / riskAmount : 0;
   }
 }
 
