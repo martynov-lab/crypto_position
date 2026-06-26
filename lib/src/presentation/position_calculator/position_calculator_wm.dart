@@ -1,5 +1,5 @@
-import 'package:crypto_position/src/position_calculator/position_calculator.dart';
-import 'package:crypto_position/src/position_calculator/position_calculator_model.dart';
+import 'package:crypto_position/src/presentation/position_calculator/position_calculator.dart';
+import 'package:crypto_position/src/presentation/position_calculator/position_calculator_model.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

@@ -25,10 +25,6 @@ class ResultTile extends StatelessWidget {
               icon: const Icon(Icons.copy),
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: result));
-
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Скопировано')));
               },
             ),
           ],
