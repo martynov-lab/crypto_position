@@ -5,6 +5,7 @@ import 'package:crypto_position/src/presentation/bybit/widgets/trade_calendar.da
 import 'package:crypto_position/src/presentation/bybit/widgets/trades_table.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class BybitScreen extends ElementaryWidget<BybitScreenWm> {
   BybitScreen({super.key})
@@ -41,23 +42,17 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 24),
-              TextField(
+              AppTextField(
                 controller: wm.apiKeyController,
-                decoration: const InputDecoration(
-                  labelText: 'API Key',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.vpn_key),
-                ),
+                labelText: 'API Key',
+                prefixIcon: const Icon(Icons.vpn_key),
               ),
               const SizedBox(height: 16),
-              TextField(
+              AppTextField(
                 controller: wm.apiSecretController,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'API Secret',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
+                labelText: 'API Secret',
+                prefixIcon: const Icon(Icons.lock),
               ),
               const SizedBox(height: 24),
               SizedBox(

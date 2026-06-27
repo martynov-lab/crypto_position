@@ -1,0 +1,11 @@
+name: ui_kit
+description: Design tokens and theme for crypto_position
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter

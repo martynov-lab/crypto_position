@@ -10,6 +10,7 @@ class MainScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeNotifier = context.watch<ThemeNotifier>();
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

@@ -2,6 +2,7 @@ import 'package:crypto_position/src/components/result_tile.dart';
 import 'package:crypto_position/src/presentation/position_calculator/position_calculator_wm.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
   PositionCalculator({super.key})
@@ -87,29 +88,23 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
                   children: [
                     Expanded(
                       flex: 3,
-                      child: TextField(
+                      child: AppTextField(
                         controller: entries[i].priceController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: InputDecoration(
-                          labelText: 'Цена TP ${i + 1}',
-                          border: const OutlineInputBorder(),
-                        ),
+                        labelText: 'Цена TP ${i + 1}',
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
-                      child: TextField(
+                      child: AppTextField(
                         controller: entries[i].percentController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: '%',
-                          border: OutlineInputBorder(),
-                        ),
+                        labelText: '%',
                       ),
                     ),
                     if (entries.length > 1)
@@ -131,13 +126,10 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
 Widget _buildField(String label, TextEditingController controller) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: TextField(
+    child: AppTextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      labelText: label,
     ),
   );
 }

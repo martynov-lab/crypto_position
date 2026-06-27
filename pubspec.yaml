@@ -16,6 +16,8 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   bybit:
     path: packages/bybit
+  ui_kit:
+    path: packages/ui_kit
 
 dev_dependencies:
   flutter_test:

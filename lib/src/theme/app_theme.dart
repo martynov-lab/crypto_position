@@ -1,25 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class AppTheme {
-  static ThemeData get light => ThemeData(
-    colorSchemeSeed: Colors.indigo,
-    brightness: Brightness.light,
-    useMaterial3: true,
-    inputDecorationTheme: const InputDecorationTheme(
-      border: OutlineInputBorder(),
-      filled: true,
-    ),
-  );
-
-  static ThemeData get dark => ThemeData(
-    colorSchemeSeed: Colors.indigo,
-    brightness: Brightness.dark,
-    useMaterial3: true,
-    inputDecorationTheme: const InputDecorationTheme(
-      border: OutlineInputBorder(),
-      filled: true,
-    ),
-  );
+  static ThemeData get light => AppThemeData.light;
+  static ThemeData get dark => AppThemeData.dark;
 }
 
 const keyThemeMode = 'THEME_MODE';
