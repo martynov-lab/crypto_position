@@ -7,8 +7,7 @@ const _keyApiSecret = 'BYBIT_API_SECRET';
 class BybitScreenModel extends ElementaryModel {
   final FlutterSecureStorage _storage;
 
-  BybitScreenModel({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+  BybitScreenModel(this._storage);
 
   Future<String?> getApiKey() => _storage.read(key: _keyApiKey);
   Future<String?> getApiSecret() => _storage.read(key: _keyApiSecret);

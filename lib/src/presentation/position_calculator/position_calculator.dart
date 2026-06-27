@@ -11,48 +11,51 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
   Widget build(PositionCalculatorWm wm) {
     return Center(
       child: SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600),
-        child: Column(
-        children: [
-          const SizedBox(height: 16),
-          _buildField('Размер счёта (USD)', wm.accountController),
-          _buildField('Риск (%)', wm.riskController),
-          _buildField('Цена входа', wm.entryController),
-          _buildField('Стоп-лосс', wm.stopController),
-          _buildField('Комиссия открытия (%)', wm.openCommissionController),
-          _buildField('Комиссия закрытия (%)', wm.closeCommissionController),
-          const SizedBox(height: 16),
-          _buildTakeProfitsSection(wm),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: wm.calculate,
-              child: const Text('Рассчитать'),
-            ),
+        padding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              _buildField('Размер счёта (USD)', wm.accountController),
+              _buildField('Риск (%)', wm.riskController),
+              _buildField('Цена входа', wm.entryController),
+              _buildField('Стоп-лосс', wm.stopController),
+              _buildField('Комиссия открытия (%)', wm.openCommissionController),
+              _buildField(
+                'Комиссия закрытия (%)',
+                wm.closeCommissionController,
+              ),
+              const SizedBox(height: 16),
+              _buildTakeProfitsSection(wm),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: wm.calculate,
+                  child: const Text('Рассчитать'),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              ResultTile(listenable: wm.riskUsd, title: 'Риск (USD)'),
+              ResultTile(
+                listenable: wm.positionSizeCrypto,
+                title: 'Размер позиции (Crypto)',
+              ),
+              ResultTile(
+                listenable: wm.positionSizeUsd,
+                title: 'Размер позиции (USD)',
+              ),
+              ResultTile(
+                listenable: wm.profitUsd,
+                title: 'Потенциальная прибыль',
+              ),
+              ResultTile(listenable: wm.rr, title: 'Risk / Reward'),
+            ],
           ),
-          const SizedBox(height: 24),
-          const Divider(),
-          ResultTile(listenable: wm.riskUsd, title: 'Риск (USD)'),
-          ResultTile(
-            listenable: wm.positionSizeCrypto,
-            title: 'Размер позиции (Crypto)',
-          ),
-          ResultTile(
-            listenable: wm.positionSizeUsd,
-            title: 'Размер позиции (USD)',
-          ),
-          ResultTile(
-            listenable: wm.profitUsd,
-            title: 'Потенциальная прибыль',
-          ),
-          ResultTile(listenable: wm.rr, title: 'Risk / Reward'),
-        ],
+        ),
       ),
-      ),
-    ),
     );
   }
 

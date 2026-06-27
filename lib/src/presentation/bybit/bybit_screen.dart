@@ -1,5 +1,8 @@
-import 'package:bybit_api/bybit_api.dart';
+import 'package:bybit/bybit.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen_wm.dart';
+import 'package:crypto_position/src/presentation/bybit/widgets/day_detail_view.dart';
+import 'package:crypto_position/src/presentation/bybit/widgets/trade_calendar.dart';
+import 'package:crypto_position/src/presentation/bybit/widgets/trades_table.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
 
@@ -13,7 +16,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
       valueListenable: wm.hasCredentials,
       builder: (context, hasCreds, _) {
         if (!hasCreds) return _buildLoginForm(context, wm);
-        return _buildBalanceView(context, wm);
+        return _buildTabbedView(context, wm);
       },
     );
   }
@@ -72,7 +75,31 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildBalanceView(BuildContext context, BybitScreenWm wm) {
+  Widget _buildTabbedView(BuildContext context, BybitScreenWm wm) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Баланс', icon: Icon(Icons.account_balance_wallet)),
+              Tab(text: 'Журнал', icon: Icon(Icons.menu_book)),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildBalanceTab(context, wm),
+                _buildJournalTab(context, wm),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceTab(BuildContext context, BybitScreenWm wm) {
     return ValueListenableBuilder<bool>(
       valueListenable: wm.loading,
       builder: (context, isLoading, _) {
@@ -131,12 +158,11 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                             const SizedBox(height: 8),
                             Text(
                               '\$${wallet.totalWalletBalance.toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
+                              style: Theme.of(context).textTheme.headlineMedium
                                   ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                             ),
                           ],
@@ -144,22 +170,24 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...wallet.coins.map((coin) => Card(
-                      child: ListTile(
-                        title: Text(coin.coin),
-                        subtitle: Text(
-                          'Баланс: ${coin.walletBalance.toStringAsFixed(4)}',
-                        ),
-                        trailing: Text(
-                          'PnL: ${coin.unrealisedPnl.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            color: coin.unrealisedPnl >= 0
-                                ? Colors.green
-                                : Colors.red,
+                    ...wallet.coins.map(
+                      (coin) => Card(
+                        child: ListTile(
+                          title: Text(coin.coin),
+                          subtitle: Text(
+                            'Баланс: ${coin.walletBalance.toStringAsFixed(4)}',
+                          ),
+                          trailing: Text(
+                            'PnL: ${coin.unrealisedPnl.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: coin.unrealisedPnl >= 0
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
                           ),
                         ),
                       ),
-                    )),
+                    ),
                     const SizedBox(height: 16),
                     OutlinedButton(
                       onPressed: wm.logout,
@@ -170,6 +198,95 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
               },
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildJournalTab(BuildContext context, BybitScreenWm wm) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: wm.tradesLoading,
+      builder: (context, isLoading, _) {
+        if (isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 600;
+            if (isWide) {
+              return _buildWideJournal(context, wm);
+            }
+            return _buildNarrowJournal(context, wm);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNarrowJournal(BuildContext context, BybitScreenWm wm) {
+    return ValueListenableBuilder<DateTime?>(
+      valueListenable: wm.selectedDay,
+      builder: (context, selectedDay, _) {
+        if (selectedDay != null) {
+          return DayDetailView(
+            day: selectedDay,
+            trades: wm.tradesForDay(selectedDay),
+            onBack: () => wm.selectDay(null),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: ValueListenableBuilder<DateTime>(
+            valueListenable: wm.selectedMonth,
+            builder: (context, month, _) {
+              return TradeCalendar(
+                month: month,
+                dailyPnl: wm.dailyPnl,
+                selectedDay: selectedDay,
+                onDayTap: (day) => wm.selectDay(day),
+                onMonthChanged: wm.changeMonth,
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildWideJournal(BuildContext context, BybitScreenWm wm) {
+    return ValueListenableBuilder<List<ClosedTrade>>(
+      valueListenable: wm.trades,
+      builder: (context, trades, _) {
+        return Column(
+          children: [
+            ValueListenableBuilder<DateTime>(
+              valueListenable: wm.selectedMonth,
+              builder: (context, month, _) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: TradeCalendar(
+                    month: month,
+                    dailyPnl: wm.dailyPnl,
+                    selectedDay: null,
+                    onDayTap: (_) {},
+                    onMonthChanged: wm.changeMonth,
+                  ),
+                );
+              },
+            ),
+            const Divider(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: TradesTable(trades: trades),
+              ),
+            ),
+          ],
         );
       },
     );

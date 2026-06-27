@@ -25,10 +25,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  bybit_api:
+  bybit:
     dependency: "direct main"
     description:
-      path: "packages/bybit_api"
+      path: "packages/bybit"
       relative: true
     source: path
     version: "0.1.0"
