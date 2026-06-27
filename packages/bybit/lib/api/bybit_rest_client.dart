@@ -66,11 +66,13 @@ class BybitRestClient {
     );
   }
 
-  Future<List<ClosedPnlDto>> getAllClosedPnl({
+  static const _maxRangeMs = 7 * 24 * 60 * 60 * 1000;
+
+  Future<List<ClosedPnlDto>> _fetchChunk({
     required String category,
     String? symbol,
-    int? startTime,
-    int? endTime,
+    required int startTime,
+    required int endTime,
   }) async {
     final allItems = <ClosedPnlDto>[];
     String? cursor;
@@ -86,6 +88,42 @@ class BybitRestClient {
       allItems.addAll(page.list);
       cursor = page.nextPageCursor;
     } while (cursor != null);
+
+    return allItems;
+  }
+
+  Future<List<ClosedPnlDto>> getAllClosedPnl({
+    required String category,
+    String? symbol,
+    int? startTime,
+    int? endTime,
+  }) async {
+    if (startTime == null || endTime == null) {
+      return _fetchChunk(
+        category: category,
+        symbol: symbol,
+        startTime: startTime ?? 0,
+        endTime: endTime ?? DateTime.now().millisecondsSinceEpoch,
+      );
+    }
+
+    final allItems = <ClosedPnlDto>[];
+    var chunkStart = startTime;
+
+    while (chunkStart < endTime) {
+      var chunkEnd = chunkStart + _maxRangeMs;
+      if (chunkEnd > endTime) chunkEnd = endTime;
+
+      final items = await _fetchChunk(
+        category: category,
+        symbol: symbol,
+        startTime: chunkStart,
+        endTime: chunkEnd,
+      );
+      allItems.addAll(items);
+
+      chunkStart = chunkEnd;
+    }
 
     return allItems;
   }

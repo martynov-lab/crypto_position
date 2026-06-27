@@ -59,37 +59,44 @@ class TradesTable extends StatelessWidget {
         '${trade.createdAt.minute.toString().padLeft(2, '0')}:'
         '${trade.createdAt.second.toString().padLeft(2, '0')}';
 
-    return DataRow(cells: [
-      DataCell(Text(trade.symbol, style: const TextStyle(fontWeight: FontWeight.w600))),
-      DataCell(Text(trade.qty.toStringAsFixed(4))),
-      DataCell(Text(trade.avgEntryPrice.toStringAsFixed(2))),
-      DataCell(Text(trade.avgExitPrice.toStringAsFixed(2))),
-      DataCell(Text(trade.tradeType)),
-      DataCell(
-        Text(
-          trade.closedPnl >= 0
-              ? '+${trade.closedPnl.toStringAsFixed(4)}'
-              : trade.closedPnl.toStringAsFixed(4),
-          style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold),
-        ),
-      ),
-      DataCell(
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: pnlColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            trade.resultLabel,
-            style: TextStyle(color: pnlColor, fontSize: 12),
+    return DataRow(
+      cells: [
+        DataCell(
+          Text(
+            trade.symbol,
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
-      ),
-      DataCell(Text(trade.cumEntryValue.toStringAsFixed(2))),
-      DataCell(Text(trade.cumExitValue.toStringAsFixed(2))),
-      DataCell(Text('${trade.leverage.toStringAsFixed(0)}x')),
-      DataCell(Text(dateStr)),
-    ]);
+        DataCell(Text(trade.qty.toStringAsFixed(4))),
+        DataCell(Text(trade.avgEntryPrice.toStringAsFixed(2))),
+        DataCell(Text(trade.avgExitPrice.toStringAsFixed(2))),
+        DataCell(Text(trade.tradeType)),
+        DataCell(
+          Text(
+            trade.closedPnl >= 0
+                ? '+${trade.closedPnl.toStringAsFixed(4)}'
+                : trade.closedPnl.toStringAsFixed(4),
+            style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold),
+          ),
+        ),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: pnlColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              trade.resultLabel,
+              style: TextStyle(color: pnlColor, fontSize: 12),
+            ),
+          ),
+        ),
+        DataCell(Text(trade.cumEntryValue.toStringAsFixed(2))),
+        DataCell(Text(trade.cumExitValue.toStringAsFixed(2))),
+        DataCell(Text('${trade.leverage.toStringAsFixed(0)}x')),
+        DataCell(Text(dateStr)),
+      ],
+    );
   }
 }

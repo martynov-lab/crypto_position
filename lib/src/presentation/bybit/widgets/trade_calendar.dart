@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class TradeCalendar extends StatelessWidget {
   final DateTime month;
   final Map<DateTime, double> dailyPnl;
+  final Map<DateTime, int> dailyTradeCount;
   final DateTime? selectedDay;
   final ValueChanged<DateTime> onDayTap;
   final ValueChanged<DateTime> onMonthChanged;
@@ -11,6 +12,7 @@ class TradeCalendar extends StatelessWidget {
     super.key,
     required this.month,
     required this.dailyPnl,
+    required this.dailyTradeCount,
     required this.selectedDay,
     required this.onDayTap,
     required this.onMonthChanged,
@@ -103,16 +105,21 @@ class TradeCalendar extends StatelessWidget {
       cells.add(const SizedBox());
     }
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     for (var day = 1; day <= daysInMonth; day++) {
       final date = DateTime(month.year, month.month, day);
       final pnl = dailyPnl[date];
+      final count = dailyTradeCount[date] ?? 0;
       final isSelected =
           selectedDay != null &&
           selectedDay!.year == date.year &&
           selectedDay!.month == date.month &&
           selectedDay!.day == date.day;
+      final isToday = date == today;
 
-      cells.add(_buildDayCell(context, theme, day, date, pnl, isSelected));
+      cells.add(_buildDayCell(context, theme, day, date, pnl, count, isSelected, isToday));
     }
 
     final rows = <Widget>[];
@@ -141,13 +148,22 @@ class TradeCalendar extends StatelessWidget {
     int day,
     DateTime date,
     double? pnl,
+    int tradeCount,
     bool isSelected,
+    bool isToday,
   ) {
     Color? bgColor;
     if (pnl != null) {
       bgColor = pnl >= 0
           ? Colors.green.withValues(alpha: 0.3)
           : Colors.red.withValues(alpha: 0.3);
+    }
+
+    Border? border;
+    if (isSelected) {
+      border = Border.all(color: theme.colorScheme.primary, width: 2);
+    } else if (isToday) {
+      border = Border.all(color: theme.colorScheme.outline, width: 1.5);
     }
 
     return GestureDetector(
@@ -158,26 +174,22 @@ class TradeCalendar extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(color: theme.colorScheme.primary, width: 2)
-              : null,
+          border: border,
         ),
         alignment: Alignment.center,
-        height: 44,
+        height: 52,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               '$day',
               style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: isSelected ? FontWeight.bold : null,
+                fontWeight: (isSelected || isToday) ? FontWeight.bold : null,
               ),
             ),
             if (pnl != null)
               Text(
-                pnl >= 0
-                    ? '+${pnl.toStringAsFixed(1)}'
-                    : pnl.toStringAsFixed(1),
+                '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(1)} ($tradeCount)',
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontSize: 8,
                   color: pnl >= 0 ? Colors.green.shade700 : Colors.red.shade700,

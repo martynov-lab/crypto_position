@@ -117,6 +117,19 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     return map;
   }
 
+  Map<DateTime, int> get dailyTradeCount {
+    final map = <DateTime, int>{};
+    for (final trade in _trades.value) {
+      final day = DateTime(
+        trade.createdAt.year,
+        trade.createdAt.month,
+        trade.createdAt.day,
+      );
+      map[day] = (map[day] ?? 0) + 1;
+    }
+    return map;
+  }
+
   List<ClosedTrade> tradesForDay(DateTime day) {
     return _trades.value.where((t) {
       return t.createdAt.year == day.year &&
@@ -165,18 +178,26 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   Future<void> _loadTrades() async {
     if (_repository == null) return;
     _tradesLoading.value = true;
+    _error.value = null;
 
     final month = _selectedMonth.value;
     final startDate = DateTime(month.year, month.month);
     final endDate = DateTime(month.year, month.month + 1);
 
     try {
-      final result = await _repository!.fetchClosedTrades(
-        startDate: startDate,
-        endDate: endDate,
-      );
-      _trades.value = result;
-    } catch (_) {
+      final allTrades = <ClosedTrade>[];
+      for (final category in ['linear', 'inverse']) {
+        final result = await _repository!.fetchClosedTrades(
+          category: category,
+          startDate: startDate,
+          endDate: endDate,
+        );
+        allTrades.addAll(result);
+      }
+      allTrades.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _trades.value = allTrades;
+    } catch (e) {
+      _error.value = 'Ошибка загрузки сделок: $e';
       _trades.value = [];
     } finally {
       _tradesLoading.value = false;

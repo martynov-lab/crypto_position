@@ -244,6 +244,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
               return TradeCalendar(
                 month: month,
                 dailyPnl: wm.dailyPnl,
+                dailyTradeCount: wm.dailyTradeCount,
                 selectedDay: selectedDay,
                 onDayTap: (day) => wm.selectDay(day),
                 onMonthChanged: wm.changeMonth,
@@ -272,6 +273,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                   child: TradeCalendar(
                     month: month,
                     dailyPnl: wm.dailyPnl,
+                    dailyTradeCount: wm.dailyTradeCount,
                     selectedDay: null,
                     onDayTap: (_) {},
                     onMonthChanged: wm.changeMonth,

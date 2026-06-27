@@ -18,9 +18,14 @@ class BybitAuthInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
-    final queryString = options.queryParameters.entries
-        .map((e) => '${e.key}=${e.value}')
-        .join('&');
+    final sortedKeys = options.queryParameters.keys.toList()..sort();
+    final sortedParams = {
+      for (final k in sortedKeys) k: options.queryParameters[k],
+    };
+    options.queryParameters = sortedParams;
+
+    final queryString =
+        sortedKeys.map((k) => '$k=${sortedParams[k]}').join('&');
 
     final payload = '$timestamp$apiKey$recvWindow$queryString';
     final hmac = Hmac(sha256, utf8.encode(apiSecret));
