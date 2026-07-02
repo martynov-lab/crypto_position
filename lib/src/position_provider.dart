@@ -1,4 +1,5 @@
 import 'package:bybit/bybit.dart';
+import 'package:crypto_position/src/bybit_account_repository_factory.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
 import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,10 @@ class PositionProvider extends StatelessWidget {
       Provider<BybitConfig>.value(value: BybitConfig()),
       Provider<DioClientFactory>.value(value: DioClientFactory()),
       Provider<WsClientFactory>.value(value: WsClientFactory()),
+      Provider<BybitAccountRepositoryFactory>(
+        create: (context) =>
+            BybitAccountRepositoryFactory(context.read<BybitConfig>()),
+      ),
     ],
     child: child,
   );

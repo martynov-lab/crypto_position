@@ -1,0 +1,10 @@
+name: core_shared
+description: Core shared utilities (Result type)
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.10.7
+
+dev_dependencies:
+  test: ^1.25.0

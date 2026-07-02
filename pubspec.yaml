@@ -18,6 +18,12 @@ dependencies:
     path: packages/bybit
   ui_kit:
     path: packages/ui_kit
+  core_shared:
+    path: packages/core_shared
+  network_shared:
+    path: packages/network_shared
+  bybit_account_shared:
+    path: packages/bybit_account_shared
 
 dev_dependencies:
   flutter_test:
