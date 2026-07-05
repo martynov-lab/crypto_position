@@ -1,26 +1,17 @@
-import 'dart:async';
-
 import 'package:bybit/bybit.dart';
 import 'package:core/core.dart';
-import 'package:crypto_position/src/bybit_account_repository_factory.dart';
 import 'package:crypto_position/src/bybit_account_session.dart';
+import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen_model.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:network/network.dart';
 import 'package:provider/provider.dart';
 
 class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   final apiKeyController = TextEditingController();
   final apiSecretController = TextEditingController();
-
-  final ValueNotifier<bool> _hasCredentials = ValueNotifier(false);
-  final ValueNotifier<WalletBalanceModel?> _balance = ValueNotifier(null);
-  final ValueNotifier<bool> _loading = ValueNotifier(false);
-  final ValueNotifier<String?> _error = ValueNotifier(null);
 
   final ValueNotifier<List<ClosedTradeModel>> _trades = ValueNotifier([]);
   final ValueNotifier<bool> _tradesLoading = ValueNotifier(false);
@@ -28,50 +19,44 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     DateTime(DateTime.now().year, DateTime.now().month),
   );
   final ValueNotifier<DateTime?> _selectedDay = ValueNotifier(null);
+  final ValueNotifier<String?> _tradesError = ValueNotifier(null);
 
-  ValueListenable<bool> get hasCredentials => _hasCredentials;
-  ValueListenable<WalletBalanceModel?> get balance => _balance;
-  ValueListenable<bool> get loading => _loading;
+  ValueListenable<bool> get hasCredentials => _sessionService.hasCredentials;
+  ValueListenable<BybitAccountSession?> get session => _sessionService.session;
+  ValueListenable<bool> get loading => _sessionService.loading;
   ValueListenable<String?> get error => _error;
   ValueListenable<List<ClosedTradeModel>> get trades => _trades;
   ValueListenable<bool> get tradesLoading => _tradesLoading;
   ValueListenable<DateTime> get selectedMonth => _selectedMonth;
   ValueListenable<DateTime?> get selectedDay => _selectedDay;
 
-  final BybitAccountRepositoryFactory _accountFactory;
-  final ReconnectionService _reconnectionService;
+  final BybitSessionService _sessionService;
 
-  BybitAccountSession? _session;
-  StreamSubscription<WalletBalanceModel>? _wsSub;
+  /// Connection errors from the session merged with trades errors.
+  final ValueNotifier<String?> _error = ValueNotifier(null);
 
-  BybitScreenWm(
-    super.model, {
-    required BybitAccountRepositoryFactory accountFactory,
-    required ReconnectionService reconnectionService,
-  }) : _accountFactory = accountFactory,
-       _reconnectionService = reconnectionService;
+  BybitScreenWm(super.model, {required BybitSessionService sessionService})
+    : _sessionService = sessionService;
 
   @override
   void initWidgetModel() {
     super.initWidgetModel();
-    _checkCredentials();
+    _sessionService.error.addListener(_syncError);
+    _tradesError.addListener(_syncError);
+    _syncError();
+    _sessionService.session.addListener(_onSessionChanged);
+    if (_sessionService.session.value != null) {
+      _loadTrades();
+    }
   }
 
   @override
   void dispose() {
+    _sessionService.error.removeListener(_syncError);
+    _sessionService.session.removeListener(_onSessionChanged);
     apiKeyController.dispose();
     apiSecretController.dispose();
-    _closeSession();
     super.dispose();
-  }
-
-  Future<void> _checkCredentials() async {
-    final apiKey = await model.getApiKey();
-    final apiSecret = await model.getApiSecret();
-    if (apiKey != null && apiSecret != null && apiKey.isNotEmpty) {
-      _hasCredentials.value = true;
-      _connectApi(apiKey, apiSecret);
-    }
   }
 
   Future<void> saveCredentials() async {
@@ -79,17 +64,13 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     final secret = apiSecretController.text.trim();
     if (key.isEmpty || secret.isEmpty) return;
 
-    await model.saveCredentials(key, secret);
-    _hasCredentials.value = true;
-    _connectApi(key, secret);
+    await _sessionService.saveCredentials(key, secret);
   }
 
   Future<void> logout() async {
-    _closeSession();
-    _balance.value = null;
     _trades.value = [];
-    await model.clearCredentials();
-    _hasCredentials.value = false;
+    _tradesError.value = null;
+    await _sessionService.logout();
   }
 
   void selectDay(DateTime? day) {
@@ -136,54 +117,23 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     }).toList();
   }
 
-  Future<void> _wsConnect() async => _session?.wsManager.start();
-
-  Future<void> _wsDisconnect() async => _session?.wsManager.stop();
-
-  void _closeSession() {
-    _reconnectionService
-      ..removeOnConnectedAction(_wsConnect)
-      ..removeOnDisconnectedAction(_wsDisconnect);
-    _wsSub?.cancel();
-    _wsSub = null;
-    _session?.dispose();
-    _session = null;
+  void _syncError() {
+    _error.value = _sessionService.error.value ?? _tradesError.value;
   }
 
-  Future<void> _connectApi(String apiKey, String apiSecret) async {
-    _loading.value = true;
-    _error.value = null;
-
-    final session = _accountFactory.create(
-      apiKey: apiKey,
-      apiSecret: apiSecret,
-    );
-    _session = session;
-
-    final result = await session.repository.fetchWalletBalance();
-    if (_session != session) return;
-    result.fold(
-      (balance) => _balance.value = balance,
-      (error) => _error.value = error.toString(),
-    );
-    _loading.value = false;
-
-    _wsSub = session.repository.walletUpdates.listen((update) {
-      _balance.value = update;
-    });
-    unawaited(session.wsManager.start());
-    _reconnectionService
-      ..addOnConnectedAction(_wsConnect)
-      ..addOnDisconnectedAction(_wsDisconnect);
-
-    await _loadTrades();
+  void _onSessionChanged() {
+    if (_sessionService.session.value != null) {
+      _loadTrades();
+    } else {
+      _trades.value = [];
+    }
   }
 
   Future<void> _loadTrades() async {
-    final session = _session;
+    final session = _sessionService.session.value;
     if (session == null) return;
     _tradesLoading.value = true;
-    _error.value = null;
+    _tradesError.value = null;
 
     final month = _selectedMonth.value;
     final startDate = DateTime(month.year, month.month);
@@ -196,12 +146,12 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
         startDate: startDate,
         endDate: endDate,
       );
-      if (_session != session) return;
+      if (_sessionService.session.value != session) return;
       switch (result) {
         case Ok(:final value):
           allTrades.addAll(value);
         case Err(:final error):
-          _error.value = 'Ошибка загрузки сделок: $error';
+          _tradesError.value = 'Ошибка загрузки сделок: $error';
           _trades.value = [];
           _tradesLoading.value = false;
           return;
@@ -215,8 +165,7 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
 
 BybitScreenWm bybitScreenWmFactory({required BuildContext context}) {
   return BybitScreenWm(
-    BybitScreenModel(context.read<FlutterSecureStorage>()),
-    accountFactory: context.read<BybitAccountRepositoryFactory>(),
-    reconnectionService: context.read<ReconnectionService>(),
+    BybitScreenModel(),
+    sessionService: context.read<BybitSessionService>(),
   );
 }

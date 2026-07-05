@@ -58,32 +58,35 @@ void main() {
     });
   });
 
-  group('BybitAccountRepository.walletUpdates', () {
-    test('maps DTO frames to WalletBalanceModel', () async {
+  group('BybitAccountRepository.balance', () {
+    test('updates the balance notifier from wallet frames', () async {
       final wsService = WsService();
       final subscriber = WalletSubscriber(wsService);
       final repository = BybitAccountRepository(
         bybitAccountApi: BybitAccountApi(RestClient(Dio())),
         walletSubscriber: subscriber,
       );
-      final events = <WalletBalanceModel>[];
-      repository.walletUpdates.listen(events.add);
+
+      expect(repository.balance.value, isNull);
 
       wsService.onMessage(_walletFrame());
       await Future<void>.delayed(Duration.zero);
 
-      expect(events, hasLength(1));
-      expect(events.single.totalEquity, 10.5);
-      expect(events.single.coins.single.unrealisedPnl, 0.25);
+      final wallet = repository.balance.value;
+      expect(wallet, isNotNull);
+      expect(wallet!.totalEquity, 10.5);
+      expect(wallet.coins.single.unrealisedPnl, 0.25);
+      repository.dispose();
       subscriber.dispose();
     });
 
-    test('throws StateError when no subscriber is configured', () {
+    test('stays null without a subscriber', () async {
       final repository = BybitAccountRepository(
         bybitAccountApi: BybitAccountApi(RestClient(Dio())),
       );
 
-      expect(() => repository.walletUpdates, throwsStateError);
+      expect(repository.balance.value, isNull);
+      repository.dispose();
     });
   });
 }

@@ -1,4 +1,4 @@
-import 'package:crypto_position/src/main_screen.dart';
+import 'package:crypto_position/src/presentation/crypto_app/crypto_app.dart';
 import 'package:crypto_position/src/position_provider.dart';
 import 'package:crypto_position/src/share_preferences/flutter_shared_preferences_helper.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +12,7 @@ void main() {
   runApp(
     PositionProvider(
       sharedPreferencesHelper: sharedPreferencesHelper,
-      child: const MainScreen(),
+      child: CryptoApp(),
     ),
   );
 }

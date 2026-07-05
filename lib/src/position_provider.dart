@@ -1,5 +1,6 @@
 import 'package:bybit/bybit.dart';
 import 'package:crypto_position/src/bybit_account_repository_factory.dart';
+import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:network/network.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
 import 'package:crypto_position/src/theme/app_theme.dart';
@@ -34,6 +35,14 @@ class PositionProvider extends StatelessWidget {
         create: (_) => ReconnectionService(
           lifecycleService: AppLifecycleService(),
           connectionMonitor: ConnectivityMonitor(),
+        ),
+        dispose: (_, value) => value.dispose(),
+      ),
+      Provider<BybitSessionService>(
+        create: (context) => BybitSessionService(
+          storage: context.read<FlutterSecureStorage>(),
+          accountFactory: context.read<BybitAccountRepositoryFactory>(),
+          reconnectionService: context.read<ReconnectionService>(),
         ),
         dispose: (_, value) => value.dispose(),
       ),

@@ -16,5 +16,6 @@ class BybitAccountSession {
   void dispose() {
     wsManager.dispose();
     _wsService.dispose();
+    repository.dispose();
   }
 }

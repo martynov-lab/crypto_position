@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../api/bybit_account_api.dart';
 import '../api/mappers/closed_trade_mapper.dart';
@@ -9,20 +12,33 @@ import 'models/wallet_balance_model.dart';
 
 class BybitAccountRepository {
   final BybitAccountApi _api;
-  final WalletSubscriber? _walletSubscriber;
+  final ValueNotifier<WalletBalanceModel?> _balance = ValueNotifier(null);
 
-  const BybitAccountRepository({
+  StreamSubscription<void>? _walletSub;
+
+  BybitAccountRepository({
     required BybitAccountApi bybitAccountApi,
     WalletSubscriber? walletSubscriber,
-  })  : _api = bybitAccountApi,
-        _walletSubscriber = walletSubscriber;
+  }) : _api = bybitAccountApi {
+    _walletSub = walletSubscriber?.stream.listen(
+      (dto) => _balance.value = dto.toModel(),
+    );
+  }
+
+  /// Current wallet balance: filled by [fetchWalletBalance] and kept
+  /// up to date by the WebSocket wallet stream.
+  ValueListenable<WalletBalanceModel?> get balance => _balance;
 
   Future<Result<WalletBalanceModel, Object>> fetchWalletBalance({
     String accountType = 'UNIFIED',
   }) async {
     final result = await _api.fetchWalletBalance(accountType: accountType);
 
-    return result.map((dto) => dto.toModel());
+    return result.map((dto) {
+      final model = dto.toModel();
+      _balance.value = model;
+      return model;
+    });
   }
 
   Future<Result<List<ClosedTradeModel>, Object>> fetchClosedTrades({
@@ -43,12 +59,8 @@ class BybitAccountRepository {
     );
   }
 
-  /// Live wallet updates from the WebSocket stream.
-  Stream<WalletBalanceModel> get walletUpdates {
-    final subscriber = _walletSubscriber;
-    if (subscriber == null) {
-      throw StateError('BybitAccountRepository has no WalletSubscriber');
-    }
-    return subscriber.stream.map((dto) => dto.toModel());
+  void dispose() {
+    _walletSub?.cancel();
+    _balance.dispose();
   }
 }
