@@ -10,8 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   connectivity_plus: ^6.1.0
-  core_shared:
-    path: ../core_shared
+  core:
+    path: ../core
   dio: ^5.8.0+1
   web_socket_channel: ^3.0.0
 

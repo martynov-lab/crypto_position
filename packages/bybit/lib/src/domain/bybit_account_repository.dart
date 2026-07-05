@@ -1,4 +1,4 @@
-import 'package:core_shared/core_shared.dart';
+import 'package:core/core.dart';
 
 import '../api/bybit_account_api.dart';
 import '../api/mappers/closed_trade_mapper.dart';

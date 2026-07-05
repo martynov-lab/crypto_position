@@ -1,4 +1,4 @@
-import 'package:core_shared/core_shared.dart';
+import 'package:core/core.dart';
 import 'package:network/network.dart';
 
 import 'dto/closed_pnl_dto.dart';

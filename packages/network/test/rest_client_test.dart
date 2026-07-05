@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:core_shared/core_shared.dart';
+import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:network/network.dart';
 import 'package:flutter_test/flutter_test.dart';

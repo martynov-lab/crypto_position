@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:core_shared/core_shared.dart';
+import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
 import 'rest_client_exception.dart';

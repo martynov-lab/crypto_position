@@ -19,8 +19,8 @@ dependencies:
   dio: ^5.8.0+1
   ui_kit:
     path: packages/ui_kit
-  core_shared:
-    path: packages/core_shared
+  core:
+    path: packages/core
   network:
     path: packages/network
 
