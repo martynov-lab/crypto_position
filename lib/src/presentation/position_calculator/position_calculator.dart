@@ -32,12 +32,26 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
+                child: AppButton(
                   onPressed: wm.calculate,
-                  child: const Text('Рассчитать'),
+                  label: 'Рассчитать',
                 ),
               ),
               const SizedBox(height: 24),
+              ValueListenableBuilder<String?>(
+                valueListenable: wm.validationError,
+                builder: (context, error, _) => error == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          error,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+              ),
               const Divider(),
               ResultTile(listenable: wm.riskUsd, title: 'Риск (USD)'),
               ResultTile(
@@ -48,9 +62,25 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
                 listenable: wm.positionSizeUsd,
                 title: 'Размер позиции (USD)',
               ),
+              ValueListenableBuilder<List<double?>>(
+                valueListenable: wm.tpProfits,
+                builder: (context, profits, _) => Column(
+                  children: [
+                    for (var i = 0; i < profits.length; i++)
+                      ListTile(
+                        title: Text('Прибыль TP ${i + 1}'),
+                        trailing: Text(
+                          profits[i] == null
+                              ? '-'
+                              : profits[i]!.toStringAsFixed(2),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
               ResultTile(
                 listenable: wm.profitUsd,
-                title: 'Потенциальная прибыль',
+                title: 'Общая прибыль',
               ),
               ResultTile(listenable: wm.rr, title: 'Risk / Reward'),
             ],

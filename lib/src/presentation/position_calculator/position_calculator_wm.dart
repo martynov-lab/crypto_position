@@ -37,6 +37,12 @@ class PositionCalculatorWm
   final ValueNotifier<List<TakeProfitEntry>> _takeProfits = ValueNotifier([]);
   ValueListenable<List<TakeProfitEntry>> get takeProfits => _takeProfits;
 
+  final ValueNotifier<List<double?>> _tpProfits = ValueNotifier([]);
+  ValueListenable<List<double?>> get tpProfits => _tpProfits;
+
+  final ValueNotifier<String?> _validationError = ValueNotifier(null);
+  ValueListenable<String?> get validationError => _validationError;
+
   ValueListenable<double?> get positionSizeCrypto => _positionSizeCrypto;
   ValueListenable<double?> get positionSizeUsd => _positionSizeUsd;
   ValueListenable<double?> get riskUsd => _riskUsd;
@@ -112,6 +118,17 @@ class PositionCalculatorWm
       return;
     }
 
+    double percentSum = 0;
+    for (final tp in _takeProfits.value) {
+      percentSum += double.tryParse(tp.percentController.text) ?? 0;
+    }
+    if (percentSum > 100) {
+      _validationError.value =
+          'Сумма процентов тейк-профитов не должна превышать 100%';
+      return;
+    }
+    _validationError.value = null;
+
     final riskAmount = accountSize * riskPercent / 100;
     final stopDistance = (entry - stop).abs();
     final openCommissionPerCoin = entry * openCommissionPercent / 100;
@@ -121,23 +138,32 @@ class PositionCalculatorWm
     final sizeCrypto = riskAmount / totalRiskPerCoin;
     final sizeUsd = sizeCrypto * entry;
 
-    double weightedProfit = 0;
+    final isLong = stop < entry;
+    final tpProfits = <double?>[];
+    double totalProfit = 0;
     for (final tp in _takeProfits.value) {
       final tpPrice = double.tryParse(tp.priceController.text) ?? 0;
       final tpPercent = double.tryParse(tp.percentController.text) ?? 0;
-      if (tpPrice <= 0 || tpPercent <= 0) continue;
-      final profitDistance = (tpPrice - entry).abs();
+      if (tpPrice <= 0 || tpPercent <= 0) {
+        tpProfits.add(null);
+        continue;
+      }
+      final profitPerCoin = isLong ? tpPrice - entry : entry - tpPrice;
       final tpCommission = tpPrice * closeCommissionPercent / 100;
-      final netProfitPerCoin = profitDistance - openCommissionPerCoin - tpCommission;
+      final netProfitPerCoin =
+          profitPerCoin - openCommissionPerCoin - tpCommission;
       final portion = tpPercent / 100;
-      weightedProfit += sizeCrypto * portion * netProfitPerCoin;
+      final tpProfit = sizeCrypto * portion * netProfitPerCoin;
+      tpProfits.add(tpProfit);
+      totalProfit += tpProfit;
     }
 
     _positionSizeCrypto.value = sizeCrypto;
     _positionSizeUsd.value = sizeUsd;
     _riskUsd.value = riskAmount;
-    _profitUsd.value = weightedProfit;
-    _rr.value = riskAmount > 0 ? weightedProfit / riskAmount : 0;
+    _tpProfits.value = tpProfits;
+    _profitUsd.value = totalProfit;
+    _rr.value = riskAmount > 0 ? totalProfit / riskAmount : 0;
   }
 }
 
