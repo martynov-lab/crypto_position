@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:bybit/bybit.dart';
-import 'package:core_shared/core_shared.dart';
+import 'package:core/core.dart';
 import 'package:crypto_position/src/bybit_account_repository_factory.dart';
 import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen.dart';

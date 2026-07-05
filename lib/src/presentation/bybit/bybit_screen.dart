@@ -57,10 +57,10 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
+                child: AppButton(
                   onPressed: wm.saveCredentials,
                   icon: const Icon(Icons.add),
-                  label: const Text('Добавить'),
+                  label: 'Добавить',
                 ),
               ),
             ],
@@ -120,9 +120,9 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                       const SizedBox(height: 16),
                       Text(err, textAlign: TextAlign.center),
                       const SizedBox(height: 16),
-                      OutlinedButton(
+                      AppButton.outlined(
                         onPressed: wm.logout,
-                        child: const Text('Сбросить ключ'),
+                        label: 'Сбросить ключ',
                       ),
                     ],
                   ),
@@ -184,9 +184,9 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    OutlinedButton(
+                    AppButton.outlined(
                       onPressed: wm.logout,
-                      child: const Text('Отключить API'),
+                      label: 'Отключить API',
                     ),
                   ],
                 );
