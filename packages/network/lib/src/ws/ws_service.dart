@@ -49,15 +49,35 @@ class WsService {
   /// Called by WsManager when the connection is lost or stopped.
   void onDisconnected() => _sender = null;
 
+  /// Removes [subscriber] and unsubscribes from its topic.
+  void removeSubscriber(WsSubscriber<Object?> subscriber) {
+    _subscribers.remove(subscriber);
+    if (_topics.remove(subscriber.topic)) {
+      _sender?.call({
+        'op': 'unsubscribe',
+        'args': [subscriber.topic],
+      });
+    }
+    subscriber.dispose();
+  }
+
   /// Routes an incoming decoded frame to subscribers by topic.
+  ///
+  /// `data` is a list on private topics but a single object on public
+  /// ticker topics, so both shapes are accepted.
   void onMessage(Map<String, Object?> message) {
     final topic = message['topic'];
     final data = message['data'];
-    if (topic is! String || data is! List) return;
+    if (topic is! String) return;
+    final items = switch (data) {
+      final List<Object?> list => list,
+      final Map<dynamic, dynamic> map => <Object?>[map],
+      _ => const <Object?>[],
+    };
 
     for (final subscriber in _subscribers) {
       if (subscriber.topic != topic) continue;
-      for (final element in data) {
+      for (final element in items) {
         if (element is Map) {
           subscriber.handle(element.cast<String, Object?>());
         }

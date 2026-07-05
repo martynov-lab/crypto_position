@@ -62,9 +62,9 @@ class BybitSessionService {
     _closeSession();
   }
 
-  Future<void> _wsConnect() async => _session.value?.wsManager.start();
+  Future<void> _wsConnect() async => _session.value?.startWs();
 
-  Future<void> _wsDisconnect() async => _session.value?.wsManager.stop();
+  Future<void> _wsDisconnect() async => _session.value?.stopWs();
 
   void _closeSession() {
     _reconnectionService
@@ -88,9 +88,14 @@ class BybitSessionService {
     final result = await session.repository.fetchWalletBalance();
     if (_session.value != session) return;
     result.fold((_) {}, (error) => _error.value = error.toString());
+
+    // Seed open positions before the WS position stream layers updates.
+    final positionsResult = await session.repository.fetchPositions();
+    if (_session.value != session) return;
+    positionsResult.fold((_) {}, (error) => _error.value = error.toString());
     _loading.value = false;
 
-    unawaited(session.wsManager.start());
+    unawaited(session.startWs());
     _reconnectionService
       ..addOnConnectedAction(_wsConnect)
       ..addOnDisconnectedAction(_wsDisconnect);

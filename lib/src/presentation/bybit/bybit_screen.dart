@@ -1,13 +1,11 @@
 import 'package:bybit/bybit.dart';
-import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen_wm.dart';
 import 'package:crypto_position/src/presentation/bybit/widgets/day_detail_view.dart';
+import 'package:crypto_position/src/presentation/bybit/widgets/settings_view.dart';
 import 'package:crypto_position/src/presentation/bybit/widgets/trade_calendar.dart';
 import 'package:crypto_position/src/presentation/bybit/widgets/trades_table.dart';
-import 'package:crypto_position/src/presentation/widgets/balance_view.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
-import 'package:ui_kit/ui_kit.dart';
 
 class BybitScreen extends ElementaryWidget<BybitScreenWm> {
   BybitScreen({super.key})
@@ -15,80 +13,19 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
 
   @override
   Widget build(BybitScreenWm wm) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: wm.hasCredentials,
-      builder: (context, hasCreds, _) {
-        if (!hasCreds) return _buildLoginForm(context, wm);
-        return _buildTabbedView(context, wm);
-      },
-    );
-  }
-
-  Widget _buildLoginForm(BuildContext context, BybitScreenWm wm) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.key,
-                size: 64,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Подключение к Bybit',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 24),
-              AppTextField(
-                controller: wm.apiKeyController,
-                labelText: 'API Key',
-                prefixIcon: const Icon(Icons.vpn_key),
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                controller: wm.apiSecretController,
-                obscureText: true,
-                labelText: 'API Secret',
-                prefixIcon: const Icon(Icons.lock),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: AppButton(
-                  onPressed: wm.saveCredentials,
-                  icon: const Icon(Icons.add),
-                  label: 'Добавить',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabbedView(BuildContext context, BybitScreenWm wm) {
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
           const TabBar(
             tabs: [
-              Tab(text: 'Баланс', icon: Icon(Icons.account_balance_wallet)),
               Tab(text: 'Журнал', icon: Icon(Icons.menu_book)),
+              Tab(text: 'Настройки', icon: Icon(Icons.settings)),
             ],
           ),
           Expanded(
             child: TabBarView(
-              children: [
-                _buildBalanceTab(context, wm),
-                _buildJournalTab(context, wm),
-              ],
+              children: [_buildJournalTabGuarded(wm), _buildSettingsTab(wm)],
             ),
           ),
         ],
@@ -96,61 +33,43 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildBalanceTab(BuildContext context, BybitScreenWm wm) {
+  Widget _buildSettingsTab(BybitScreenWm wm) {
     return ValueListenableBuilder<bool>(
-      valueListenable: wm.loading,
-      builder: (context, isLoading, _) {
-        if (isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return ValueListenableBuilder<String?>(
-          valueListenable: wm.error,
-          builder: (context, err, _) {
-            if (err != null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(err, textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      AppButton.outlined(
-                        onPressed: wm.logout,
-                        label: 'Сбросить ключ',
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return ValueListenableBuilder<BybitAccountSession?>(
-              valueListenable: wm.session,
-              builder: (context, session, _) {
-                if (session == null) {
-                  return const Center(child: Text('Нет данных'));
-                }
-                return ValueListenableBuilder<WalletBalanceModel?>(
-                  valueListenable: session.repository.balance,
-                  builder: (context, wallet, _) {
-                    if (wallet == null) {
-                      return const Center(child: Text('Нет данных'));
-                    }
-                    return BalanceView(wallet: wallet, onLogout: wm.logout);
-                  },
+      valueListenable: wm.hasCredentials,
+      builder: (context, hasCreds, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: wm.loading,
+          builder: (context, isLoading, _) {
+            return ValueListenableBuilder<String?>(
+              valueListenable: wm.error,
+              builder: (context, err, _) {
+                return SettingsView(
+                  hasCredentials: hasCreds,
+                  loading: isLoading,
+                  error: err,
+                  apiKeyController: wm.apiKeyController,
+                  apiSecretController: wm.apiSecretController,
+                  onSaveCredentials: wm.saveCredentials,
+                  onLogout: wm.logout,
                 );
               },
             );
           },
         );
+      },
+    );
+  }
+
+  Widget _buildJournalTabGuarded(BybitScreenWm wm) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: wm.hasCredentials,
+      builder: (context, hasCreds, _) {
+        if (!hasCreds) {
+          return const Center(
+            child: Text('Подключите API ключ на вкладке Настройки'),
+          );
+        }
+        return _buildJournalTab(context, wm);
       },
     );
   }

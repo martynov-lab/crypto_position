@@ -13,10 +13,12 @@ typedef WsChannelFactory = WebSocketChannel Function(Uri uri);
 /// Owns the WebSocket connection: connect, in-band auth, ping, reconnect.
 ///
 /// The auth message is produced by [authMessageFactory] so protocol-specific
-/// signing (e.g. Bybit HMAC) stays outside this package's core.
+/// signing (e.g. Bybit HMAC) stays outside this package's core. When the
+/// factory is null the stream is public: the connection is considered
+/// authenticated as soon as the channel opens.
 class WsManager {
   final Uri Function() _getUri;
-  final Map<String, Object?> Function() _authMessageFactory;
+  final Map<String, Object?> Function()? _authMessageFactory;
   final WsService _wsService;
   final RetryPolicy _retryPolicy;
   final WsChannelFactory _connect;
@@ -36,7 +38,7 @@ class WsManager {
 
   WsManager({
     required Uri Function() getUri,
-    required Map<String, Object?> Function() authMessageFactory,
+    Map<String, Object?> Function()? authMessageFactory,
     required WsService wsService,
     RetryPolicy retryPolicy = const DefaultReconnectPolicy(),
     WsChannelFactory? connect,
@@ -86,7 +88,12 @@ class WsManager {
         onError: (Object _) => _onChannelLost(),
         onDone: _onChannelLost,
       );
-      _send(_authMessageFactory());
+      final authMessageFactory = _authMessageFactory;
+      if (authMessageFactory != null) {
+        _send(authMessageFactory());
+      } else {
+        _onAuthenticated();
+      }
     } on Object {
       _onChannelLost();
     }

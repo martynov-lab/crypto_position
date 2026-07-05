@@ -31,6 +31,7 @@ class BybitAccountRepositoryFactory {
 
     final wsService = WsService();
     final walletSubscriber = WalletSubscriber(wsService);
+    final positionSubscriber = PositionSubscriber(wsService);
     final wsManager = WsManager(
       getUri: () => Uri.parse(_config.baseWsUrl),
       authMessageFactory: () =>
@@ -38,13 +39,25 @@ class BybitAccountRepositoryFactory {
       wsService: wsService,
     );
 
+    // Public stream (no auth): per-symbol ticker topics for live PnL.
+    final publicWsService = WsService();
+    final tickerSubscriptions = TickerSubscriptions(publicWsService);
+    final publicWsManager = WsManager(
+      getUri: () => Uri.parse(_config.basePublicWsUrl),
+      wsService: publicWsService,
+    );
+
     return BybitAccountSession(
       repository: BybitAccountRepository(
         bybitAccountApi: BybitAccountApi(RestClient(dio)),
         walletSubscriber: walletSubscriber,
+        positionSubscriber: positionSubscriber,
+        tickerSubscriptions: tickerSubscriptions,
       ),
       wsManager: wsManager,
       wsService: wsService,
+      publicWsManager: publicWsManager,
+      publicWsService: publicWsService,
     );
   }
 }

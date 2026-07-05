@@ -41,7 +41,7 @@ void main() {
       expect(events, ['BTC', 'ETH']);
     });
 
-    test('ignores frames without topic or with non-list data', () {
+    test('ignores frames without topic or with scalar data', () {
       final wallet = WsSubscriber<String>(
         'wallet',
         (json) => json['coin']! as String,
@@ -52,6 +52,52 @@ void main() {
       service.onMessage({'op': 'pong'});
       service.onMessage({'topic': 'wallet', 'data': 'oops'});
       service.onMessage({'topic': 'wallet'});
+    });
+
+    test('routes a single-object data payload (public ticker shape)',
+        () async {
+      final ticker = WsSubscriber<String>(
+        'tickers.BTCUSDT',
+        (json) => json['markPrice']! as String,
+      );
+      service.addSubscriber(ticker);
+      final events = <String>[];
+      ticker.stream.listen(events.add);
+
+      service.onMessage({
+        'topic': 'tickers.BTCUSDT',
+        'data': {'markPrice': '65000.5'},
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, ['65000.5']);
+    });
+
+    test('removeSubscriber sends unsubscribe and stops routing', () async {
+      final ticker = WsSubscriber<String>(
+        'tickers.BTCUSDT',
+        (json) => json['markPrice']! as String,
+      );
+      service.addSubscriber(ticker);
+      service.onConnected(sender);
+      sent.clear();
+      final events = <String>[];
+      ticker.stream.listen(events.add);
+
+      service.removeSubscriber(ticker);
+      service.onMessage({
+        'topic': 'tickers.BTCUSDT',
+        'data': {'markPrice': '65000.5'},
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sent, [
+        {
+          'op': 'unsubscribe',
+          'args': ['tickers.BTCUSDT'],
+        },
+      ]);
+      expect(events, isEmpty);
     });
 
     test('queues sends while disconnected and flushes them on connect', () {

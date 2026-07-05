@@ -62,7 +62,15 @@ class HomeScreen extends ElementaryWidget<HomeScreenWm> {
                         if (wallet == null) {
                           return const Center(child: Text('Нет данных'));
                         }
-                        return BalanceView(wallet: wallet);
+                        return ValueListenableBuilder<List<PositionModel>?>(
+                          valueListenable: session.repository.positions,
+                          builder: (context, positions, _) {
+                            return BalanceView(
+                              wallet: wallet,
+                              positions: positions ?? const [],
+                            );
+                          },
+                        );
                       },
                     );
                   },

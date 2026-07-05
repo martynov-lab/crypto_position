@@ -1,7 +1,5 @@
-import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 class ScaffoldWithNavBar extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -10,20 +8,9 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeNotifier = context.watch<ThemeNotifier>();
-    final isDark = themeNotifier.mode == ThemeMode.dark ||
-        (themeNotifier.mode == ThemeMode.system &&
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Crypto Position'),
-        actions: [
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: themeNotifier.toggle,
-          ),
-        ],
       ),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(

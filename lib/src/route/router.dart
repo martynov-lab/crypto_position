@@ -11,7 +11,7 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
 
 GoRouter get router => GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/calculator',
+  initialLocation: '/',
   debugLogDiagnostics: true,
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(

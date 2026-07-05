@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:network/network.dart';
 
 import 'dto/closed_pnl_dto.dart';
+import 'dto/position_dto.dart';
 import 'dto/wallet_balance_dto.dart';
 
 class BybitAccountApi {
@@ -38,6 +39,39 @@ class BybitAccountApi {
           }
           return Ok(
             WalletBalanceDto.fromJson(list.first! as Map<String, Object?>),
+          );
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
+      (error) => Err(error),
+    );
+  }
+
+  Future<Result<List<PositionDto>, Object>> fetchPositions({
+    String category = 'linear',
+    String settleCoin = 'USDT',
+  }) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/v5/position/list',
+      queryParams: {
+        'category': category,
+        'settleCoin': settleCoin,
+        'limit': 200,
+      },
+    );
+
+    return response.fold<Result<List<PositionDto>, Object>>(
+      (data) {
+        final envelopeError = _envelopeError(data);
+        if (envelopeError != null) return Err(envelopeError);
+        try {
+          final result = data['result'] as Map<String, Object?>;
+          final list = result['list'] as List<Object?>? ?? const [];
+          return Ok(
+            list
+                .map((e) => PositionDto.fromJson(e! as Map<String, Object?>))
+                .toList(),
           );
         } on Object catch (error) {
           return Err(error);
