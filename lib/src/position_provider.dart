@@ -1,5 +1,6 @@
 import 'package:bybit/bybit.dart';
 import 'package:crypto_position/src/bybit_account_repository_factory.dart';
+import 'package:network/network.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
 import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -22,12 +23,19 @@ class PositionProvider extends StatelessWidget {
       Provider<SharedPreferencesHelper>.value(value: sharedPreferencesHelper),
       ChangeNotifierProvider<ThemeNotifier>.value(value: ThemeNotifier()),
       Provider<FlutterSecureStorage>.value(value: FlutterSecureStorage()),
-      Provider<BybitConfig>.value(value: BybitConfig()),
-      Provider<DioClientFactory>.value(value: DioClientFactory()),
-      Provider<WsClientFactory>.value(value: WsClientFactory()),
+      // recvWindow 60s tolerates moderate local clock skew (Bybit rejects
+      // signed requests when |local - server| exceeds the window).
+      Provider<BybitConfig>.value(value: BybitConfig(recvWindow: 60000)),
       Provider<BybitAccountRepositoryFactory>(
         create: (context) =>
             BybitAccountRepositoryFactory(context.read<BybitConfig>()),
+      ),
+      Provider<ReconnectionService>(
+        create: (_) => ReconnectionService(
+          lifecycleService: AppLifecycleService(),
+          connectionMonitor: ConnectivityMonitor(),
+        ),
+        dispose: (_, value) => value.dispose(),
       ),
     ],
     child: child,

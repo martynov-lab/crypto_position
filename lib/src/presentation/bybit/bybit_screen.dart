@@ -130,7 +130,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
               );
             }
 
-            return ValueListenableBuilder<WalletBalance?>(
+            return ValueListenableBuilder<WalletBalanceModel?>(
               valueListenable: wm.balance,
               builder: (context, wallet, _) {
                 if (wallet == null) {
@@ -252,7 +252,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
   }
 
   Widget _buildWideJournal(BuildContext context, BybitScreenWm wm) {
-    return ValueListenableBuilder<List<ClosedTrade>>(
+    return ValueListenableBuilder<List<ClosedTradeModel>>(
       valueListenable: wm.trades,
       builder: (context, trades, _) {
         return Column(

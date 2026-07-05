@@ -10,8 +10,14 @@ void main() {
       final mappedOk = ok.map((value) => value * 10);
       final mappedErr = err.map((value) => value * 10);
 
-      expect(mappedOk, isA<Ok<int, String>>().having((r) => r.value, 'value', 20));
-      expect(mappedErr, isA<Err<int, String>>().having((r) => r.error, 'error', 'boom'));
+      expect(
+        mappedOk,
+        isA<Ok<int, String>>().having((r) => r.value, 'value', 20),
+      );
+      expect(
+        mappedErr,
+        isA<Err<int, String>>().having((r) => r.error, 'error', 'boom'),
+      );
     });
 
     test('mapErr transforms Err error and keeps Ok untouched', () {
@@ -22,7 +28,10 @@ void main() {
       final mappedErr = err.mapErr((error) => error.length);
 
       expect(mappedOk, isA<Ok<int, int>>().having((r) => r.value, 'value', 2));
-      expect(mappedErr, isA<Err<int, int>>().having((r) => r.error, 'error', 4));
+      expect(
+        mappedErr,
+        isA<Err<int, int>>().having((r) => r.error, 'error', 4),
+      );
     });
 
     test('fold calls ifOk for Ok and ifErr for Err', () {
@@ -30,7 +39,10 @@ void main() {
       const Result<int, String> err = Err('boom');
 
       expect(ok.fold((value) => 'ok:$value', (error) => 'err:$error'), 'ok:2');
-      expect(err.fold((value) => 'ok:$value', (error) => 'err:$error'), 'err:boom');
+      expect(
+        err.fold((value) => 'ok:$value', (error) => 'err:$error'),
+        'err:boom',
+      );
     });
 
     test('supports pattern matching via switch', () {

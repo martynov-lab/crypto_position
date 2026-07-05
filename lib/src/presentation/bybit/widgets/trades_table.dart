@@ -2,7 +2,7 @@ import 'package:bybit/bybit.dart';
 import 'package:flutter/material.dart';
 
 class TradesTable extends StatelessWidget {
-  final List<ClosedTrade> trades;
+  final List<ClosedTradeModel> trades;
 
   const TradesTable({super.key, required this.trades});
 
@@ -49,7 +49,7 @@ class TradesTable extends StatelessWidget {
     );
   }
 
-  DataRow _buildRow(ClosedTrade trade, ThemeData theme) {
+  DataRow _buildRow(ClosedTradeModel trade, ThemeData theme) {
     final pnlColor = trade.isProfitable ? Colors.green : Colors.red;
     final dateStr =
         '${trade.createdAt.year}-'

@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import 'package:bybit/bybit.dart';
+import 'package:core_shared/core_shared.dart';
+import 'package:crypto_position/src/bybit_account_repository_factory.dart';
+import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen.dart';
 import 'package:crypto_position/src/presentation/bybit/bybit_screen_model.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:network/network.dart';
 import 'package:provider/provider.dart';
 
 class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
@@ -14,11 +18,11 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   final apiSecretController = TextEditingController();
 
   final ValueNotifier<bool> _hasCredentials = ValueNotifier(false);
-  final ValueNotifier<WalletBalance?> _balance = ValueNotifier(null);
+  final ValueNotifier<WalletBalanceModel?> _balance = ValueNotifier(null);
   final ValueNotifier<bool> _loading = ValueNotifier(false);
   final ValueNotifier<String?> _error = ValueNotifier(null);
 
-  final ValueNotifier<List<ClosedTrade>> _trades = ValueNotifier([]);
+  final ValueNotifier<List<ClosedTradeModel>> _trades = ValueNotifier([]);
   final ValueNotifier<bool> _tradesLoading = ValueNotifier(false);
   final ValueNotifier<DateTime> _selectedMonth = ValueNotifier(
     DateTime(DateTime.now().year, DateTime.now().month),
@@ -26,29 +30,26 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   final ValueNotifier<DateTime?> _selectedDay = ValueNotifier(null);
 
   ValueListenable<bool> get hasCredentials => _hasCredentials;
-  ValueListenable<WalletBalance?> get balance => _balance;
+  ValueListenable<WalletBalanceModel?> get balance => _balance;
   ValueListenable<bool> get loading => _loading;
   ValueListenable<String?> get error => _error;
-  ValueListenable<List<ClosedTrade>> get trades => _trades;
+  ValueListenable<List<ClosedTradeModel>> get trades => _trades;
   ValueListenable<bool> get tradesLoading => _tradesLoading;
   ValueListenable<DateTime> get selectedMonth => _selectedMonth;
   ValueListenable<DateTime?> get selectedDay => _selectedDay;
 
-  final BybitConfig _config;
-  final DioClientFactory _dioFactory;
-  final WsClientFactory _wsFactory;
+  final BybitAccountRepositoryFactory _accountFactory;
+  final ReconnectionService _reconnectionService;
 
-  BybitRepository? _repository;
-  StreamSubscription? _wsSub;
+  BybitAccountSession? _session;
+  StreamSubscription<WalletBalanceModel>? _wsSub;
 
   BybitScreenWm(
     super.model, {
-    required BybitConfig config,
-    required DioClientFactory dioFactory,
-    required WsClientFactory wsFactory,
-  }) : _config = config,
-       _dioFactory = dioFactory,
-       _wsFactory = wsFactory;
+    required BybitAccountRepositoryFactory accountFactory,
+    required ReconnectionService reconnectionService,
+  }) : _accountFactory = accountFactory,
+       _reconnectionService = reconnectionService;
 
   @override
   void initWidgetModel() {
@@ -60,8 +61,7 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   void dispose() {
     apiKeyController.dispose();
     apiSecretController.dispose();
-    _wsSub?.cancel();
-    _repository?.dispose();
+    _closeSession();
     super.dispose();
   }
 
@@ -85,9 +85,7 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   }
 
   Future<void> logout() async {
-    _wsSub?.cancel();
-    _repository?.dispose();
-    _repository = null;
+    _closeSession();
     _balance.value = null;
     _trades.value = [];
     await model.clearCredentials();
@@ -130,7 +128,7 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     return map;
   }
 
-  List<ClosedTrade> tradesForDay(DateTime day) {
+  List<ClosedTradeModel> tradesForDay(DateTime day) {
     return _trades.value.where((t) {
       return t.createdAt.year == day.year &&
           t.createdAt.month == day.month &&
@@ -138,45 +136,52 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     }).toList();
   }
 
+  Future<void> _wsConnect() async => _session?.wsManager.start();
+
+  Future<void> _wsDisconnect() async => _session?.wsManager.stop();
+
+  void _closeSession() {
+    _reconnectionService
+      ..removeOnConnectedAction(_wsConnect)
+      ..removeOnDisconnectedAction(_wsDisconnect);
+    _wsSub?.cancel();
+    _wsSub = null;
+    _session?.dispose();
+    _session = null;
+  }
+
   Future<void> _connectApi(String apiKey, String apiSecret) async {
     _loading.value = true;
     _error.value = null;
 
-    final dio = _dioFactory.create(
-      config: _config,
+    final session = _accountFactory.create(
       apiKey: apiKey,
       apiSecret: apiSecret,
     );
-    final wsChannel = _wsFactory.create(
-      config: _config,
-      apiKey: apiKey,
-      apiSecret: apiSecret,
+    _session = session;
+
+    final result = await session.repository.fetchWalletBalance();
+    if (_session != session) return;
+    result.fold(
+      (balance) => _balance.value = balance,
+      (error) => _error.value = error.toString(),
     );
+    _loading.value = false;
 
-    final restClient = BybitRestClient(dio);
-    final wsClient = BybitWsClient(wsChannel);
-
-    _repository = BybitRepository(restClient: restClient, wsClient: wsClient);
-
-    try {
-      final walletBalance = await _repository!.fetchBalance();
-      _balance.value = walletBalance;
-    } catch (e) {
-      _error.value = e.toString();
-    } finally {
-      _loading.value = false;
-    }
-
-    _wsSub = _repository!.walletUpdates.listen((update) {
+    _wsSub = session.repository.walletUpdates.listen((update) {
       _balance.value = update;
     });
-    _repository!.connectWs();
+    unawaited(session.wsManager.start());
+    _reconnectionService
+      ..addOnConnectedAction(_wsConnect)
+      ..addOnDisconnectedAction(_wsDisconnect);
 
     await _loadTrades();
   }
 
   Future<void> _loadTrades() async {
-    if (_repository == null) return;
+    final session = _session;
+    if (session == null) return;
     _tradesLoading.value = true;
     _error.value = null;
 
@@ -184,32 +189,34 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
     final startDate = DateTime(month.year, month.month);
     final endDate = DateTime(month.year, month.month + 1);
 
-    try {
-      final allTrades = <ClosedTrade>[];
-      for (final category in ['linear', 'inverse']) {
-        final result = await _repository!.fetchClosedTrades(
-          category: category,
-          startDate: startDate,
-          endDate: endDate,
-        );
-        allTrades.addAll(result);
+    final allTrades = <ClosedTradeModel>[];
+    for (final category in ['linear', 'inverse']) {
+      final result = await session.repository.fetchClosedTrades(
+        category: category,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      if (_session != session) return;
+      switch (result) {
+        case Ok(:final value):
+          allTrades.addAll(value);
+        case Err(:final error):
+          _error.value = 'Ошибка загрузки сделок: $error';
+          _trades.value = [];
+          _tradesLoading.value = false;
+          return;
       }
-      allTrades.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      _trades.value = allTrades;
-    } catch (e) {
-      _error.value = 'Ошибка загрузки сделок: $e';
-      _trades.value = [];
-    } finally {
-      _tradesLoading.value = false;
     }
+    allTrades.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _trades.value = allTrades;
+    _tradesLoading.value = false;
   }
 }
 
 BybitScreenWm bybitScreenWmFactory({required BuildContext context}) {
   return BybitScreenWm(
     BybitScreenModel(context.read<FlutterSecureStorage>()),
-    config: context.read<BybitConfig>(),
-    dioFactory: context.read<DioClientFactory>(),
-    wsFactory: context.read<WsClientFactory>(),
+    accountFactory: context.read<BybitAccountRepositoryFactory>(),
+    reconnectionService: context.read<ReconnectionService>(),
   );
 }

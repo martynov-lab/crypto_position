@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class DayDetailView extends StatelessWidget {
   final DateTime day;
-  final List<ClosedTrade> trades;
+  final List<ClosedTradeModel> trades;
   final VoidCallback onBack;
 
   const DayDetailView({
@@ -88,7 +88,7 @@ class DayDetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildTradeCard(BuildContext context, ClosedTrade trade) {
+  Widget _buildTradeCard(BuildContext context, ClosedTradeModel trade) {
     final theme = Theme.of(context);
     final pnlColor = trade.isProfitable ? Colors.green : Colors.red;
     final timeStr =

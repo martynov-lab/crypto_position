@@ -1,17 +1,19 @@
 import 'package:bybit/bybit.dart';
-import 'package:bybit_account_shared/bybit_account_shared.dart';
-import 'package:network_shared/network_shared.dart';
+import 'package:crypto_position/src/bybit_account_session.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:network/network.dart';
 
-/// Builds the BybitAccountRepository graph once API keys are available.
+/// Builds the Bybit account session graph once API keys are available.
 ///
 /// Keys live in secure storage and are loaded asynchronously, so the
-/// repository cannot be provided directly at app start.
+/// session cannot be provided directly at app start.
 class BybitAccountRepositoryFactory {
   final BybitConfig _config;
 
   const BybitAccountRepositoryFactory(this._config);
 
-  BybitAccountRepository create({
+  BybitAccountSession create({
     required String apiKey,
     required String apiSecret,
   }) {
@@ -24,10 +26,25 @@ class BybitAccountRepositoryFactory {
           apiSecret: apiSecret,
           recvWindow: _config.recvWindow,
         ),
+        if (kDebugMode) LogInterceptor(requestBody: true, responseBody: true),
       ]);
 
-    return BybitAccountRepository(
-      bybitAccountApi: BybitAccountApi(RestClient(dio)),
+    final wsService = WsService();
+    final walletSubscriber = WalletSubscriber(wsService);
+    final wsManager = WsManager(
+      getUri: () => Uri.parse(_config.baseWsUrl),
+      authMessageFactory: () =>
+          bybitWsAuthMessage(apiKey: apiKey, apiSecret: apiSecret),
+      wsService: wsService,
+    );
+
+    return BybitAccountSession(
+      repository: BybitAccountRepository(
+        bybitAccountApi: BybitAccountApi(RestClient(dio)),
+        walletSubscriber: walletSubscriber,
+      ),
+      wsManager: wsManager,
+      wsService: wsService,
     );
   }
 }
