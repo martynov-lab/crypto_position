@@ -1,7 +1,16 @@
+import 'dart:convert';
+
 import 'package:bybit/bybit.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network/network.dart';
+
+/// Feeds a Bybit-shaped frame through the protocol into the service, the way
+/// WsManager does on the wire.
+void _feed(WsService service, Map<String, Object?> frame) {
+  final decoded = const BybitWsProtocol().decodeFrame(jsonEncode(frame));
+  if (decoded is WsData) service.route(decoded);
+}
 
 Map<String, Object?> _walletFrame() => {
       'topic': 'wallet',
@@ -27,12 +36,12 @@ void main() {
   group('WalletSubscriber', () {
     test('registers on WsService and emits parsed DTOs for wallet frames',
         () async {
-      final wsService = WsService();
+      final wsService = WsService(const BybitWsProtocol());
       final subscriber = WalletSubscriber(wsService);
       final events = <WalletBalanceDto>[];
       subscriber.stream.listen(events.add);
 
-      wsService.onMessage(_walletFrame());
+      _feed(wsService, _walletFrame());
       await Future<void>.delayed(Duration.zero);
 
       expect(events, hasLength(1));
@@ -42,7 +51,7 @@ void main() {
     });
 
     test('subscribes to the wallet topic on connect', () {
-      final wsService = WsService();
+      final wsService = WsService(const BybitWsProtocol());
       WalletSubscriber(wsService);
       final sent = <Map<String, Object?>>[];
 
@@ -60,7 +69,7 @@ void main() {
 
   group('BybitAccountRepository.balance', () {
     test('updates the balance notifier from wallet frames', () async {
-      final wsService = WsService();
+      final wsService = WsService(const BybitWsProtocol());
       final subscriber = WalletSubscriber(wsService);
       final repository = BybitAccountRepository(
         bybitAccountApi: BybitAccountApi(RestClient(Dio())),
@@ -69,7 +78,7 @@ void main() {
 
       expect(repository.balance.value, isNull);
 
-      wsService.onMessage(_walletFrame());
+      _feed(wsService, _walletFrame());
       await Future<void>.delayed(Duration.zero);
 
       final wallet = repository.balance.value;

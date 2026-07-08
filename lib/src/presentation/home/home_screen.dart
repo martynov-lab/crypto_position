@@ -1,8 +1,8 @@
-import 'package:bybit/bybit.dart';
 import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/presentation/home/home_screen_wm.dart';
 import 'package:crypto_position/src/presentation/widgets/balance_view.dart';
 import 'package:elementary/elementary.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends ElementaryWidget<HomeScreenWm> {
@@ -56,7 +56,7 @@ class HomeScreen extends ElementaryWidget<HomeScreenWm> {
                     if (session == null) {
                       return const Center(child: Text('Нет данных'));
                     }
-                    return ValueListenableBuilder<WalletBalanceModel?>(
+                    return ValueListenableBuilder<BalanceModel?>(
                       valueListenable: session.repository.balance,
                       builder: (context, wallet, _) {
                         if (wallet == null) {

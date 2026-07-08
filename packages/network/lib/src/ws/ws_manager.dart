@@ -6,6 +6,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'default_reconnect_policy.dart';
 import 'retry_policy.dart';
 import 'ws_connection_state.dart';
+import 'ws_frame.dart';
+import 'ws_protocol.dart';
 import 'ws_service.dart';
 
 typedef WsChannelFactory = WebSocketChannel Function(Uri uri);
@@ -16,10 +18,14 @@ typedef WsChannelFactory = WebSocketChannel Function(Uri uri);
 /// signing (e.g. Bybit HMAC) stays outside this package's core. When the
 /// factory is null the stream is public: the connection is considered
 /// authenticated as soon as the channel opens.
+///
+/// Incoming frames and heartbeats are classified by [protocol] so this core
+/// stays exchange-agnostic.
 class WsManager {
   final Uri Function() _getUri;
   final Map<String, Object?> Function()? _authMessageFactory;
   final WsService _wsService;
+  final WsProtocol _protocol;
   final RetryPolicy _retryPolicy;
   final WsChannelFactory _connect;
   final Duration _pingInterval;
@@ -40,12 +46,14 @@ class WsManager {
     required Uri Function() getUri,
     Map<String, Object?> Function()? authMessageFactory,
     required WsService wsService,
+    required WsProtocol protocol,
     RetryPolicy retryPolicy = const DefaultReconnectPolicy(),
     WsChannelFactory? connect,
     Duration pingInterval = const Duration(seconds: 20),
   })  : _getUri = getUri,
         _authMessageFactory = authMessageFactory,
         _wsService = wsService,
+        _protocol = protocol,
         _retryPolicy = retryPolicy,
         _connect = connect ?? WebSocketChannel.connect,
         _pingInterval = pingInterval;
@@ -100,37 +108,44 @@ class WsManager {
   }
 
   void _onData(Object? raw) {
-    final Map<String, Object?> message;
+    if (raw is! String) return;
+    final WsFrame frame;
     try {
-      message = (jsonDecode(raw as String) as Map).cast<String, Object?>();
+      frame = _protocol.decodeFrame(raw);
     } on Object {
       return;
     }
 
-    if (message['op'] == 'auth') {
-      if (message['success'] == true) {
+    switch (frame) {
+      case WsAuthSuccess():
         _onAuthenticated();
-      } else {
+      case WsAuthFailure():
         unawaited(_channel?.sink.close());
         _onChannelLost();
-      }
-      return;
+      case WsData():
+        _wsService.route(frame);
+      case WsHeartbeat():
+      case WsIgnored():
+        break;
     }
-    if (message['op'] == 'pong' || message['ret_msg'] == 'pong') return;
-    if (message.containsKey('topic')) _wsService.onMessage(message);
   }
 
   void _onAuthenticated() {
     _retryCount = 0;
     _setState(WsConnectionState.connected);
     _pingTimer?.cancel();
-    _pingTimer =
-        Timer.periodic(_pingInterval, (_) => _send({'op': 'ping'}));
+    _pingTimer = Timer.periodic(
+      _pingInterval,
+      (_) => _sendRaw(_protocol.pingMessage()),
+    );
     _wsService.onConnected(_send);
   }
 
-  void _send(Map<String, Object?> message) =>
-      _channel?.sink.add(jsonEncode(message));
+  void _send(Map<String, Object?> message) => _sendRaw(message);
+
+  /// Sends [message] on the wire: strings pass through, maps are JSON-encoded.
+  void _sendRaw(Object message) =>
+      _channel?.sink.add(message is String ? message : jsonEncode(message));
 
   void _onChannelLost() {
     if (_stopped || _handlingLoss) return;

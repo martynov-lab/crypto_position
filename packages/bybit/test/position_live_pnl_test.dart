@@ -1,7 +1,16 @@
+import 'dart:convert';
+
 import 'package:bybit/bybit.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network/network.dart';
+
+/// Feeds a Bybit-shaped frame through the protocol into the service, the way
+/// WsManager does on the wire.
+void _feed(WsService service, Map<String, Object?> frame) {
+  final decoded = const BybitWsProtocol().decodeFrame(jsonEncode(frame));
+  if (decoded is WsData) service.route(decoded);
+}
 
 Map<String, Object?> _positionFrame({
   String symbol = 'BTCUSDT',
@@ -43,8 +52,8 @@ void main() {
   late List<Map<String, Object?>> publicSent;
 
   setUp(() {
-    privateWsService = WsService();
-    publicWsService = WsService();
+    privateWsService = WsService(const BybitWsProtocol());
+    publicWsService = WsService(const BybitWsProtocol());
     publicSent = [];
     publicWsService.onConnected(publicSent.add);
     tickerSubscriptions = TickerSubscriptions(publicWsService);
@@ -64,7 +73,7 @@ void main() {
   group('BybitAccountRepository.positions', () {
     test('upserts a position from the WS position topic and subscribes '
         'to its ticker', () async {
-      privateWsService.onMessage(_positionFrame());
+      _feed(privateWsService, _positionFrame());
       await Future<void>.delayed(Duration.zero);
 
       final position = repository.positions.value!.single;
@@ -81,19 +90,22 @@ void main() {
     });
 
     test('recomputes PnL on ticker ticks for Buy and Sell', () async {
-      privateWsService.onMessage(_positionFrame());
-      privateWsService.onMessage(_positionFrame(
-        symbol: 'ETHUSDT',
-        side: 'Sell',
-        size: '2',
-        entryPrice: '3000',
-        markPrice: '3000',
-        unrealisedPnl: '0',
-      ));
+      _feed(privateWsService, _positionFrame());
+      _feed(
+        privateWsService,
+        _positionFrame(
+          symbol: 'ETHUSDT',
+          side: 'Sell',
+          size: '2',
+          entryPrice: '3000',
+          markPrice: '3000',
+          unrealisedPnl: '0',
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
 
-      publicWsService.onMessage(_tickerFrame('BTCUSDT', markPrice: '62000'));
-      publicWsService.onMessage(_tickerFrame('ETHUSDT', markPrice: '2900'));
+      _feed(publicWsService, _tickerFrame('BTCUSDT', markPrice: '62000'));
+      _feed(publicWsService, _tickerFrame('ETHUSDT', markPrice: '2900'));
       await Future<void>.delayed(Duration.zero);
 
       final positions = repository.positions.value!;
@@ -105,10 +117,10 @@ void main() {
     });
 
     test('ignores delta ticks without markPrice', () async {
-      privateWsService.onMessage(_positionFrame());
+      _feed(privateWsService, _positionFrame());
       await Future<void>.delayed(Duration.zero);
 
-      publicWsService.onMessage(_tickerFrame('BTCUSDT'));
+      _feed(publicWsService, _tickerFrame('BTCUSDT'));
       await Future<void>.delayed(Duration.zero);
 
       final position = repository.positions.value!.single;
@@ -117,11 +129,11 @@ void main() {
     });
 
     test('removes a closed position and unsubscribes its ticker', () async {
-      privateWsService.onMessage(_positionFrame());
+      _feed(privateWsService, _positionFrame());
       await Future<void>.delayed(Duration.zero);
       publicSent.clear();
 
-      privateWsService.onMessage(_positionFrame(size: '0'));
+      _feed(privateWsService, _positionFrame(size: '0'));
       await Future<void>.delayed(Duration.zero);
 
       expect(repository.positions.value, isEmpty);

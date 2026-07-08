@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:bybit/bybit.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -43,10 +44,10 @@ class _StubAdapter implements HttpClientAdapter {
 }
 
 Map<String, Object?> _walletEnvelope(List<Object?> list) => {
-      'retCode': 0,
-      'retMsg': 'OK',
-      'result': {'list': list},
-    };
+  'retCode': 0,
+  'retMsg': 'OK',
+  'result': {'list': list},
+};
 
 void main() {
   group('BybitAccountApi', () {
@@ -117,20 +118,20 @@ void main() {
 
       expect(
         result,
-        isA<Err<WalletBalanceDto, Object>>()
-            .having((r) => r.error, 'error', isA<CustomBackendException>()),
+        isA<Err<WalletBalanceDto, Object>>().having(
+          (r) => r.error,
+          'error',
+          isA<CustomBackendException>(),
+        ),
       );
     });
 
     test('returns Err(CustomBackendException) when retCode != 0', () async {
-      final (client, _) = _createClient(
-        {
-          'retCode': 10002,
-          'retMsg': 'invalid request',
-          'result': <String, Object?>{},
-        },
-        200,
-      );
+      final (client, _) = _createClient({
+        'retCode': 10002,
+        'retMsg': 'invalid request',
+        'result': <String, Object?>{},
+      }, 200);
       final api = BybitAccountApi(client);
 
       final result = await api.fetchWalletBalance();
@@ -140,8 +141,11 @@ void main() {
         isA<Err<WalletBalanceDto, Object>>().having(
           (r) => r.error,
           'error',
-          isA<CustomBackendException>()
-              .having((e) => e.message, 'message', 'invalid request'),
+          isA<CustomBackendException>().having(
+            (e) => e.message,
+            'message',
+            'invalid request',
+          ),
         ),
       );
     });
@@ -164,11 +168,11 @@ void main() {
         bybitAccountApi: BybitAccountApi(client),
       );
 
-      final result = await repository.fetchWalletBalance();
+      final result = await repository.fetchBalance();
 
       expect(
         result,
-        isA<Ok<WalletBalanceModel, Object>>().having(
+        isA<Ok<BalanceModel, Object>>().having(
           (r) => r.value.totalEquity,
           'totalEquity',
           10.5,

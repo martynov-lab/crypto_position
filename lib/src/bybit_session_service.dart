@@ -85,7 +85,7 @@ class BybitSessionService {
     _session.value = session;
 
     // On success the repository stores the balance in its own notifier.
-    final result = await session.repository.fetchWalletBalance();
+    final result = await session.repository.fetchBalance();
     if (_session.value != session) return;
     result.fold((_) {}, (error) => _error.value = error.toString());
 

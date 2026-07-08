@@ -1,14 +1,22 @@
+import 'ws_frame.dart';
+import 'ws_protocol.dart';
 import 'ws_subscriber.dart';
 
 typedef WsSender = void Function(Map<String, Object?> message);
 
 /// Manages subscribers, topic subscriptions and the send queue over a
 /// single WebSocket connection driven by WsManager.
+///
+/// The wire format for subscribe/unsubscribe messages comes from [WsProtocol],
+/// so this class stays exchange-agnostic.
 class WsService {
+  final WsProtocol _protocol;
   final _subscribers = <WsSubscriber<Object?>>[];
   final _topics = <String>{};
   final _sendQueue = <Map<String, Object?>>[];
   WsSender? _sender;
+
+  WsService(this._protocol);
 
   /// Registers [subscriber] and subscribes to its topic.
   void addSubscriber<T extends Object>(WsSubscriber<T> subscriber) {
@@ -21,7 +29,7 @@ class WsService {
   /// Topics are re-sent on every connect, so they are not queued.
   void subscribe(String topic) {
     if (_topics.add(topic)) {
-      _sender?.call(_subscribeMessage(topic));
+      _sender?.call(_protocol.subscribeMessage(topic));
     }
   }
 
@@ -39,7 +47,7 @@ class WsService {
   void onConnected(WsSender sender) {
     _sender = sender;
     for (final topic in _topics) {
-      sender(_subscribeMessage(topic));
+      sender(_protocol.subscribeMessage(topic));
     }
     final queued = List.of(_sendQueue);
     _sendQueue.clear();
@@ -53,34 +61,17 @@ class WsService {
   void removeSubscriber(WsSubscriber<Object?> subscriber) {
     _subscribers.remove(subscriber);
     if (_topics.remove(subscriber.topic)) {
-      _sender?.call({
-        'op': 'unsubscribe',
-        'args': [subscriber.topic],
-      });
+      _sender?.call(_protocol.unsubscribeMessage(subscriber.topic));
     }
     subscriber.dispose();
   }
 
-  /// Routes an incoming decoded frame to subscribers by topic.
-  ///
-  /// `data` is a list on private topics but a single object on public
-  /// ticker topics, so both shapes are accepted.
-  void onMessage(Map<String, Object?> message) {
-    final topic = message['topic'];
-    final data = message['data'];
-    if (topic is! String) return;
-    final items = switch (data) {
-      final List<Object?> list => list,
-      final Map<dynamic, dynamic> map => <Object?>[map],
-      _ => const <Object?>[],
-    };
-
+  /// Routes a decoded data frame to subscribers by topic.
+  void route(WsData frame) {
     for (final subscriber in _subscribers) {
-      if (subscriber.topic != topic) continue;
-      for (final element in items) {
-        if (element is Map) {
-          subscriber.handle(element.cast<String, Object?>());
-        }
+      if (subscriber.topic != frame.topic) continue;
+      for (final element in frame.items) {
+        subscriber.handle(element);
       }
     }
   }
@@ -91,9 +82,4 @@ class WsService {
     }
     _subscribers.clear();
   }
-
-  static Map<String, Object?> _subscribeMessage(String topic) => {
-        'op': 'subscribe',
-        'args': [topic],
-      };
 }

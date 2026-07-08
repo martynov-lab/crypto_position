@@ -1,15 +1,16 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'wallet_balance_model.freezed.dart';
+part 'balance_model.freezed.dart';
 
+/// Exchange-agnostic account balance. Every exchange maps its own payload to
+/// this shape so the app consumes all of them uniformly.
 @freezed
-abstract class WalletBalanceModel with _$WalletBalanceModel {
-  const factory WalletBalanceModel({
-    required String accountType,
+abstract class BalanceModel with _$BalanceModel {
+  const factory BalanceModel({
     required double totalEquity,
     required double totalWalletBalance,
     required List<CoinBalanceModel> coins,
-  }) = _WalletBalanceModel;
+  }) = _BalanceModel;
 }
 
 @freezed

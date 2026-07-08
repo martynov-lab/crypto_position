@@ -1,6 +1,29 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network/network.dart';
 
+/// Bybit-shaped protocol used to exercise the exchange-agnostic WsService.
+class _TestProtocol implements WsProtocol {
+  const _TestProtocol();
+
+  @override
+  Map<String, Object?> subscribeMessage(String topic) => {
+        'op': 'subscribe',
+        'args': [topic],
+      };
+
+  @override
+  Map<String, Object?> unsubscribeMessage(String topic) => {
+        'op': 'unsubscribe',
+        'args': [topic],
+      };
+
+  @override
+  Object pingMessage() => {'op': 'ping'};
+
+  @override
+  WsFrame decodeFrame(String raw) => const WsIgnored();
+}
+
 void main() {
   group('WsService', () {
     late WsService service;
@@ -9,12 +32,11 @@ void main() {
     void sender(Map<String, Object?> message) => sent.add(message);
 
     setUp(() {
-      service = WsService();
+      service = WsService(const _TestProtocol());
       sent = [];
     });
 
-    test('routes data elements to the subscriber with a matching topic',
-        () async {
+    test('routes data items to the subscriber with a matching topic', () async {
       final wallet = WsSubscriber<String>(
         'wallet',
         (json) => json['coin']! as String,
@@ -29,48 +51,30 @@ void main() {
       final events = <String>[];
       wallet.stream.listen(events.add);
 
-      service.onMessage({
-        'topic': 'wallet',
-        'data': [
-          {'coin': 'BTC'},
-          {'coin': 'ETH'},
-        ],
-      });
+      service.route(const WsData('wallet', [
+        {'coin': 'BTC'},
+        {'coin': 'ETH'},
+      ]));
       await Future<void>.delayed(Duration.zero);
 
       expect(events, ['BTC', 'ETH']);
     });
 
-    test('ignores frames without topic or with scalar data', () {
+    test('does not route to subscribers of a different topic', () async {
       final wallet = WsSubscriber<String>(
         'wallet',
         (json) => json['coin']! as String,
       );
       service.addSubscriber(wallet);
-
-      // None of these should throw or emit.
-      service.onMessage({'op': 'pong'});
-      service.onMessage({'topic': 'wallet', 'data': 'oops'});
-      service.onMessage({'topic': 'wallet'});
-    });
-
-    test('routes a single-object data payload (public ticker shape)',
-        () async {
-      final ticker = WsSubscriber<String>(
-        'tickers.BTCUSDT',
-        (json) => json['markPrice']! as String,
-      );
-      service.addSubscriber(ticker);
       final events = <String>[];
-      ticker.stream.listen(events.add);
+      wallet.stream.listen(events.add);
 
-      service.onMessage({
-        'topic': 'tickers.BTCUSDT',
-        'data': {'markPrice': '65000.5'},
-      });
+      service.route(const WsData('position', [
+        {'coin': 'BTC'},
+      ]));
       await Future<void>.delayed(Duration.zero);
 
-      expect(events, ['65000.5']);
+      expect(events, isEmpty);
     });
 
     test('removeSubscriber sends unsubscribe and stops routing', () async {
@@ -85,10 +89,9 @@ void main() {
       ticker.stream.listen(events.add);
 
       service.removeSubscriber(ticker);
-      service.onMessage({
-        'topic': 'tickers.BTCUSDT',
-        'data': {'markPrice': '65000.5'},
-      });
+      service.route(const WsData('tickers.BTCUSDT', [
+        {'markPrice': '65000.5'},
+      ]));
       await Future<void>.delayed(Duration.zero);
 
       expect(sent, [

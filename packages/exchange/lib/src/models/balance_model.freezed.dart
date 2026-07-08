@@ -3,7 +3,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of 'wallet_balance_model.dart';
+part of 'balance_model.dart';
 
 // **************************************************************************
 // FreezedGenerator
@@ -12,40 +12,40 @@ part of 'wallet_balance_model.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$WalletBalanceModel {
+mixin _$BalanceModel {
 
- String get accountType; double get totalEquity; double get totalWalletBalance; List<CoinBalanceModel> get coins;
-/// Create a copy of WalletBalanceModel
+ double get totalEquity; double get totalWalletBalance; List<CoinBalanceModel> get coins;
+/// Create a copy of BalanceModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$WalletBalanceModelCopyWith<WalletBalanceModel> get copyWith => _$WalletBalanceModelCopyWithImpl<WalletBalanceModel>(this as WalletBalanceModel, _$identity);
+$BalanceModelCopyWith<BalanceModel> get copyWith => _$BalanceModelCopyWithImpl<BalanceModel>(this as BalanceModel, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WalletBalanceModel&&(identical(other.accountType, accountType) || other.accountType == accountType)&&(identical(other.totalEquity, totalEquity) || other.totalEquity == totalEquity)&&(identical(other.totalWalletBalance, totalWalletBalance) || other.totalWalletBalance == totalWalletBalance)&&const DeepCollectionEquality().equals(other.coins, coins));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BalanceModel&&(identical(other.totalEquity, totalEquity) || other.totalEquity == totalEquity)&&(identical(other.totalWalletBalance, totalWalletBalance) || other.totalWalletBalance == totalWalletBalance)&&const DeepCollectionEquality().equals(other.coins, coins));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,accountType,totalEquity,totalWalletBalance,const DeepCollectionEquality().hash(coins));
+int get hashCode => Object.hash(runtimeType,totalEquity,totalWalletBalance,const DeepCollectionEquality().hash(coins));
 
 @override
 String toString() {
-  return 'WalletBalanceModel(accountType: $accountType, totalEquity: $totalEquity, totalWalletBalance: $totalWalletBalance, coins: $coins)';
+  return 'BalanceModel(totalEquity: $totalEquity, totalWalletBalance: $totalWalletBalance, coins: $coins)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $WalletBalanceModelCopyWith<$Res>  {
-  factory $WalletBalanceModelCopyWith(WalletBalanceModel value, $Res Function(WalletBalanceModel) _then) = _$WalletBalanceModelCopyWithImpl;
+abstract mixin class $BalanceModelCopyWith<$Res>  {
+  factory $BalanceModelCopyWith(BalanceModel value, $Res Function(BalanceModel) _then) = _$BalanceModelCopyWithImpl;
 @useResult
 $Res call({
- String accountType, double totalEquity, double totalWalletBalance, List<CoinBalanceModel> coins
+ double totalEquity, double totalWalletBalance, List<CoinBalanceModel> coins
 });
 
 
@@ -53,19 +53,18 @@ $Res call({
 
 }
 /// @nodoc
-class _$WalletBalanceModelCopyWithImpl<$Res>
-    implements $WalletBalanceModelCopyWith<$Res> {
-  _$WalletBalanceModelCopyWithImpl(this._self, this._then);
+class _$BalanceModelCopyWithImpl<$Res>
+    implements $BalanceModelCopyWith<$Res> {
+  _$BalanceModelCopyWithImpl(this._self, this._then);
 
-  final WalletBalanceModel _self;
-  final $Res Function(WalletBalanceModel) _then;
+  final BalanceModel _self;
+  final $Res Function(BalanceModel) _then;
 
-/// Create a copy of WalletBalanceModel
+/// Create a copy of BalanceModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? accountType = null,Object? totalEquity = null,Object? totalWalletBalance = null,Object? coins = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? totalEquity = null,Object? totalWalletBalance = null,Object? coins = null,}) {
   return _then(_self.copyWith(
-accountType: null == accountType ? _self.accountType : accountType // ignore: cast_nullable_to_non_nullable
-as String,totalEquity: null == totalEquity ? _self.totalEquity : totalEquity // ignore: cast_nullable_to_non_nullable
+totalEquity: null == totalEquity ? _self.totalEquity : totalEquity // ignore: cast_nullable_to_non_nullable
 as double,totalWalletBalance: null == totalWalletBalance ? _self.totalWalletBalance : totalWalletBalance // ignore: cast_nullable_to_non_nullable
 as double,coins: null == coins ? _self.coins : coins // ignore: cast_nullable_to_non_nullable
 as List<CoinBalanceModel>,
@@ -75,8 +74,8 @@ as List<CoinBalanceModel>,
 }
 
 
-/// Adds pattern-matching-related methods to [WalletBalanceModel].
-extension WalletBalanceModelPatterns on WalletBalanceModel {
+/// Adds pattern-matching-related methods to [BalanceModel].
+extension BalanceModelPatterns on BalanceModel {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -89,10 +88,10 @@ extension WalletBalanceModelPatterns on WalletBalanceModel {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _WalletBalanceModel value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _BalanceModel value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _WalletBalanceModel() when $default != null:
+case _BalanceModel() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -111,10 +110,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _WalletBalanceModel value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BalanceModel value)  $default,){
 final _that = this;
 switch (_that) {
-case _WalletBalanceModel():
+case _BalanceModel():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -132,10 +131,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _WalletBalanceModel value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BalanceModel value)?  $default,){
 final _that = this;
 switch (_that) {
-case _WalletBalanceModel() when $default != null:
+case _BalanceModel() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -153,10 +152,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String accountType,  double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _WalletBalanceModel() when $default != null:
-return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
+case _BalanceModel() when $default != null:
+return $default(_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
   return orElse();
 
 }
@@ -174,10 +173,10 @@ return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String accountType,  double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)  $default,) {final _that = this;
 switch (_that) {
-case _WalletBalanceModel():
-return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
+case _BalanceModel():
+return $default(_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -194,10 +193,10 @@ return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String accountType,  double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double totalEquity,  double totalWalletBalance,  List<CoinBalanceModel> coins)?  $default,) {final _that = this;
 switch (_that) {
-case _WalletBalanceModel() when $default != null:
-return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
+case _BalanceModel() when $default != null:
+return $default(_that.totalEquity,_that.totalWalletBalance,_that.coins);case _:
   return null;
 
 }
@@ -208,11 +207,10 @@ return $default(_that.accountType,_that.totalEquity,_that.totalWalletBalance,_th
 /// @nodoc
 
 
-class _WalletBalanceModel implements WalletBalanceModel {
-  const _WalletBalanceModel({required this.accountType, required this.totalEquity, required this.totalWalletBalance, required final  List<CoinBalanceModel> coins}): _coins = coins;
+class _BalanceModel implements BalanceModel {
+  const _BalanceModel({required this.totalEquity, required this.totalWalletBalance, required final  List<CoinBalanceModel> coins}): _coins = coins;
   
 
-@override final  String accountType;
 @override final  double totalEquity;
 @override final  double totalWalletBalance;
  final  List<CoinBalanceModel> _coins;
@@ -223,37 +221,37 @@ class _WalletBalanceModel implements WalletBalanceModel {
 }
 
 
-/// Create a copy of WalletBalanceModel
+/// Create a copy of BalanceModel
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$WalletBalanceModelCopyWith<_WalletBalanceModel> get copyWith => __$WalletBalanceModelCopyWithImpl<_WalletBalanceModel>(this, _$identity);
+_$BalanceModelCopyWith<_BalanceModel> get copyWith => __$BalanceModelCopyWithImpl<_BalanceModel>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WalletBalanceModel&&(identical(other.accountType, accountType) || other.accountType == accountType)&&(identical(other.totalEquity, totalEquity) || other.totalEquity == totalEquity)&&(identical(other.totalWalletBalance, totalWalletBalance) || other.totalWalletBalance == totalWalletBalance)&&const DeepCollectionEquality().equals(other._coins, _coins));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BalanceModel&&(identical(other.totalEquity, totalEquity) || other.totalEquity == totalEquity)&&(identical(other.totalWalletBalance, totalWalletBalance) || other.totalWalletBalance == totalWalletBalance)&&const DeepCollectionEquality().equals(other._coins, _coins));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,accountType,totalEquity,totalWalletBalance,const DeepCollectionEquality().hash(_coins));
+int get hashCode => Object.hash(runtimeType,totalEquity,totalWalletBalance,const DeepCollectionEquality().hash(_coins));
 
 @override
 String toString() {
-  return 'WalletBalanceModel(accountType: $accountType, totalEquity: $totalEquity, totalWalletBalance: $totalWalletBalance, coins: $coins)';
+  return 'BalanceModel(totalEquity: $totalEquity, totalWalletBalance: $totalWalletBalance, coins: $coins)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$WalletBalanceModelCopyWith<$Res> implements $WalletBalanceModelCopyWith<$Res> {
-  factory _$WalletBalanceModelCopyWith(_WalletBalanceModel value, $Res Function(_WalletBalanceModel) _then) = __$WalletBalanceModelCopyWithImpl;
+abstract mixin class _$BalanceModelCopyWith<$Res> implements $BalanceModelCopyWith<$Res> {
+  factory _$BalanceModelCopyWith(_BalanceModel value, $Res Function(_BalanceModel) _then) = __$BalanceModelCopyWithImpl;
 @override @useResult
 $Res call({
- String accountType, double totalEquity, double totalWalletBalance, List<CoinBalanceModel> coins
+ double totalEquity, double totalWalletBalance, List<CoinBalanceModel> coins
 });
 
 
@@ -261,19 +259,18 @@ $Res call({
 
 }
 /// @nodoc
-class __$WalletBalanceModelCopyWithImpl<$Res>
-    implements _$WalletBalanceModelCopyWith<$Res> {
-  __$WalletBalanceModelCopyWithImpl(this._self, this._then);
+class __$BalanceModelCopyWithImpl<$Res>
+    implements _$BalanceModelCopyWith<$Res> {
+  __$BalanceModelCopyWithImpl(this._self, this._then);
 
-  final _WalletBalanceModel _self;
-  final $Res Function(_WalletBalanceModel) _then;
+  final _BalanceModel _self;
+  final $Res Function(_BalanceModel) _then;
 
-/// Create a copy of WalletBalanceModel
+/// Create a copy of BalanceModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? accountType = null,Object? totalEquity = null,Object? totalWalletBalance = null,Object? coins = null,}) {
-  return _then(_WalletBalanceModel(
-accountType: null == accountType ? _self.accountType : accountType // ignore: cast_nullable_to_non_nullable
-as String,totalEquity: null == totalEquity ? _self.totalEquity : totalEquity // ignore: cast_nullable_to_non_nullable
+@override @pragma('vm:prefer-inline') $Res call({Object? totalEquity = null,Object? totalWalletBalance = null,Object? coins = null,}) {
+  return _then(_BalanceModel(
+totalEquity: null == totalEquity ? _self.totalEquity : totalEquity // ignore: cast_nullable_to_non_nullable
 as double,totalWalletBalance: null == totalWalletBalance ? _self.totalWalletBalance : totalWalletBalance // ignore: cast_nullable_to_non_nullable
 as double,coins: null == coins ? _self._coins : coins // ignore: cast_nullable_to_non_nullable
 as List<CoinBalanceModel>,

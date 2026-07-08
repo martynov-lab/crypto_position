@@ -1,5 +1,6 @@
 export 'src/api/bybit_account_api.dart';
 export 'src/api/bybit_ws_auth.dart';
+export 'src/api/bybit_ws_protocol.dart';
 export 'src/api/dto/closed_pnl_dto.dart';
 export 'src/api/dto/position_dto.dart';
 export 'src/api/dto/ticker_dto.dart';
@@ -12,7 +13,5 @@ export 'src/api/ticker_subscriptions.dart';
 export 'src/api/wallet_subscriber.dart';
 export 'src/domain/bybit_account_repository.dart';
 export 'src/domain/models/closed_trade_model.dart';
-export 'src/domain/models/position_model.dart';
-export 'src/domain/models/wallet_balance_model.dart';
 export 'src/service/bybit_auth_interceptor.dart';
 export 'src/service/bybit_config.dart';

@@ -1,4 +1,5 @@
-import '../../domain/models/position_model.dart';
+import 'package:exchange/exchange.dart';
+
 import '../dto/position_dto.dart';
 
 extension PositionMapper on PositionDto {

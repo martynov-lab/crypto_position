@@ -9,6 +9,8 @@ export 'src/rest_client/rest_client.dart';
 export 'src/rest_client/rest_client_exception.dart';
 export 'src/ws/default_reconnect_policy.dart';
 export 'src/ws/retry_policy.dart';
+export 'src/ws/ws_frame.dart';
+export 'src/ws/ws_protocol.dart';
 export 'src/ws/ws_connection_state.dart';
 export 'src/ws/ws_manager.dart';
 export 'src/ws/ws_service.dart';

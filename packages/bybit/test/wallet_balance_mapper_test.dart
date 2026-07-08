@@ -21,7 +21,6 @@ void main() {
 
       final model = dto.toModel();
 
-      expect(model.accountType, 'UNIFIED');
       expect(model.totalEquity, 123.45);
       expect(model.totalWalletBalance, 100.5);
       expect(model.coins, hasLength(1));

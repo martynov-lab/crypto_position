@@ -1,9 +1,13 @@
-import '../../domain/models/balance_model.dart';
+import 'package:exchange/exchange.dart';
+
 import '../dto/balance_dto.dart';
 
 extension BalanceMapper on BalanceDto {
   BalanceModel toModel() => BalanceModel(
         totalEquity: _parseAmount(totalEq),
+        // OKX has no separate "wallet balance" total; total equity is the
+        // closest exchange-agnostic equivalent.
+        totalWalletBalance: _parseAmount(totalEq),
         coins: details.map((coin) => coin.toModel()).toList(),
       );
 }
@@ -12,7 +16,8 @@ extension CoinBalanceMapper on CoinBalanceDto {
   CoinBalanceModel toModel() => CoinBalanceModel(
         coin: ccy,
         equity: _parseAmount(eq),
-        cashBalance: _parseAmount(cashBal),
+        // OKX reports cash balance as `cashBal`.
+        walletBalance: _parseAmount(cashBal),
         usdValue: _parseAmount(eqUsd),
         unrealisedPnl: _parseAmount(upl),
       );

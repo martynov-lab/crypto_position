@@ -6,6 +6,54 @@ import 'package:network/network.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+/// Bybit-shaped protocol used to drive the exchange-agnostic WsManager.
+class _TestProtocol implements WsProtocol {
+  const _TestProtocol();
+
+  @override
+  Map<String, Object?> subscribeMessage(String topic) => {
+        'op': 'subscribe',
+        'args': [topic],
+      };
+
+  @override
+  Map<String, Object?> unsubscribeMessage(String topic) => {
+        'op': 'unsubscribe',
+        'args': [topic],
+      };
+
+  @override
+  Object pingMessage() => {'op': 'ping'};
+
+  @override
+  WsFrame decodeFrame(String raw) {
+    final Map<String, Object?> message;
+    try {
+      message = (jsonDecode(raw) as Map).cast<String, Object?>();
+    } on Object {
+      return const WsIgnored();
+    }
+    if (message['op'] == 'auth') {
+      return message['success'] == true
+          ? const WsAuthSuccess()
+          : const WsAuthFailure();
+    }
+    if (message['op'] == 'pong') return const WsHeartbeat();
+    final topic = message['topic'];
+    if (topic is String) {
+      final data = message['data'];
+      final items = data is List
+          ? [
+              for (final e in data)
+                if (e is Map) e.cast<String, Object?>(),
+            ]
+          : const <Map<String, Object?>>[];
+      return WsData(topic, items);
+    }
+    return const WsIgnored();
+  }
+}
+
 /// Fake channel: captures client sends, lets tests emit server frames.
 class FakeWebSocketChannel extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
@@ -94,7 +142,7 @@ void main() {
       Duration pingInterval = const Duration(minutes: 1),
     }) {
       channels = [];
-      wsService = WsService();
+      wsService = WsService(const _TestProtocol());
       return WsManager(
         getUri: () => Uri.parse('wss://example.com/v5/private'),
         authMessageFactory: () => {
@@ -102,6 +150,7 @@ void main() {
           'args': ['key', 1, 'signature'],
         },
         wsService: wsService,
+        protocol: const _TestProtocol(),
         retryPolicy: retryPolicy,
         pingInterval: pingInterval,
         connect: (_) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
 
 import '../api/bybit_account_api.dart';
@@ -12,13 +13,11 @@ import '../api/position_subscriber.dart';
 import '../api/ticker_subscriptions.dart';
 import '../api/wallet_subscriber.dart';
 import 'models/closed_trade_model.dart';
-import 'models/position_model.dart';
-import 'models/wallet_balance_model.dart';
 
-class BybitAccountRepository {
+class BybitAccountRepository implements ExchangeAccountRepository {
   final BybitAccountApi _api;
   final TickerSubscriptions? _tickerSubscriptions;
-  final ValueNotifier<WalletBalanceModel?> _balance = ValueNotifier(null);
+  final ValueNotifier<BalanceModel?> _balance = ValueNotifier(null);
   final ValueNotifier<List<PositionModel>?> _positions = ValueNotifier(null);
 
   /// Open positions keyed by '$symbol#$positionIdx'.
@@ -41,18 +40,19 @@ class BybitAccountRepository {
     _positionSub = positionSubscriber?.stream.listen(_onPositionEvent);
   }
 
-  /// Current wallet balance: filled by [fetchWalletBalance] and kept
+  /// Current wallet balance: filled by [fetchBalance] and kept
   /// up to date by the WebSocket wallet stream.
-  ValueListenable<WalletBalanceModel?> get balance => _balance;
+  @override
+  ValueListenable<BalanceModel?> get balance => _balance;
 
   /// Open positions: seeded by [fetchPositions], updated by the private
   /// `position` topic and re-priced on every public ticker tick.
+  @override
   ValueListenable<List<PositionModel>?> get positions => _positions;
 
-  Future<Result<WalletBalanceModel, Object>> fetchWalletBalance({
-    String accountType = 'UNIFIED',
-  }) async {
-    final result = await _api.fetchWalletBalance(accountType: accountType);
+  @override
+  Future<Result<BalanceModel, Object>> fetchBalance() async {
+    final result = await _api.fetchWalletBalance();
 
     return result.map((dto) {
       final model = dto.toModel();
@@ -61,17 +61,18 @@ class BybitAccountRepository {
     });
   }
 
+  @override
   Future<Result<List<PositionModel>, Object>> fetchPositions() async {
     final result = await _api.fetchPositions();
 
     return result.map((dtoList) {
-      final models = dtoList.map((dto) => dto.toModel()).toList();
-      _positionsByKey
-        ..clear()
-        ..addEntries(models.map((model) => MapEntry(_key(model), model)));
+      _positionsByKey.clear();
+      for (final dto in dtoList) {
+        _positionsByKey[_key(dto)] = dto.toModel();
+      }
       _publishPositions();
       _syncTickerSubscriptions();
-      return models;
+      return _positionsByKey.values.toList();
     });
   }
 
@@ -95,7 +96,7 @@ class BybitAccountRepository {
 
   void _onPositionEvent(PositionDto dto) {
     final model = dto.toModel();
-    final key = _key(model);
+    final key = _key(dto);
     if (model.size == 0) {
       _positionsByKey.remove(key);
     } else {
@@ -165,9 +166,9 @@ class BybitAccountRepository {
   static double _pnl(String side, double size, double avgPrice, double mark) =>
       side == 'Buy' ? size * (mark - avgPrice) : size * (avgPrice - mark);
 
-  static String _key(PositionModel position) =>
-      '${position.symbol}#${position.positionIdx}';
+  static String _key(PositionDto dto) => '${dto.symbol}#${dto.positionIdx}';
 
+  @override
   void dispose() {
     _walletSub?.cancel();
     _positionSub?.cancel();

@@ -1,9 +1,9 @@
-import 'package:bybit/bybit.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class BalanceView extends StatelessWidget {
-  final WalletBalanceModel wallet;
+  final BalanceModel wallet;
   final List<PositionModel> positions;
   final VoidCallback? onLogout;
 

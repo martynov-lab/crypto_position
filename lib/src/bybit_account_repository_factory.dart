@@ -29,7 +29,9 @@ class BybitAccountRepositoryFactory {
         if (kDebugMode) LogInterceptor(requestBody: true, responseBody: true),
       ]);
 
-    final wsService = WsService();
+    const protocol = BybitWsProtocol();
+
+    final wsService = WsService(protocol);
     final walletSubscriber = WalletSubscriber(wsService);
     final positionSubscriber = PositionSubscriber(wsService);
     final wsManager = WsManager(
@@ -37,14 +39,16 @@ class BybitAccountRepositoryFactory {
       authMessageFactory: () =>
           bybitWsAuthMessage(apiKey: apiKey, apiSecret: apiSecret),
       wsService: wsService,
+      protocol: protocol,
     );
 
     // Public stream (no auth): per-symbol ticker topics for live PnL.
-    final publicWsService = WsService();
+    final publicWsService = WsService(protocol);
     final tickerSubscriptions = TickerSubscriptions(publicWsService);
     final publicWsManager = WsManager(
       getUri: () => Uri.parse(_config.basePublicWsUrl),
       wsService: publicWsService,
+      protocol: protocol,
     );
 
     return BybitAccountSession(

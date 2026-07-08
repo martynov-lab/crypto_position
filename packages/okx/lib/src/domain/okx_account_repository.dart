@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
 
 import '../api/account_subscriber.dart';
@@ -10,10 +11,8 @@ import '../api/mappers/position_mapper.dart';
 import '../api/mark_price_subscriptions.dart';
 import '../api/okx_account_api.dart';
 import '../api/position_subscriber.dart';
-import 'models/balance_model.dart';
-import 'models/position_model.dart';
 
-class OkxAccountRepository {
+class OkxAccountRepository implements ExchangeAccountRepository {
   final OkxAccountApi _api;
   final MarkPriceSubscriptions? _markPriceSubscriptions;
   final ValueNotifier<BalanceModel?> _balance = ValueNotifier(null);
@@ -41,12 +40,15 @@ class OkxAccountRepository {
 
   /// Current balance: filled by [fetchBalance] and kept up to date by the
   /// WebSocket `account` channel.
+  @override
   ValueListenable<BalanceModel?> get balance => _balance;
 
   /// Open positions: seeded by [fetchPositions], updated by the private
   /// `positions` channel and re-priced on every public mark-price tick.
+  @override
   ValueListenable<List<PositionModel>?> get positions => _positions;
 
+  @override
   Future<Result<BalanceModel, Object>> fetchBalance() async {
     final result = await _api.fetchBalance();
 
@@ -57,6 +59,7 @@ class OkxAccountRepository {
     });
   }
 
+  @override
   Future<Result<List<PositionModel>, Object>> fetchPositions() async {
     final result = await _api.fetchPositions();
 
@@ -146,6 +149,7 @@ class OkxAccountRepository {
   static String _key(PositionModel position) =>
       '${position.symbol}#${position.side}';
 
+  @override
   void dispose() {
     _accountSub?.cancel();
     _positionSub?.cancel();

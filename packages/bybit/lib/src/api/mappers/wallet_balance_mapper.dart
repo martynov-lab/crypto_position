@@ -1,9 +1,9 @@
-import '../../domain/models/wallet_balance_model.dart';
+import 'package:exchange/exchange.dart';
+
 import '../dto/wallet_balance_dto.dart';
 
 extension WalletBalanceMapper on WalletBalanceDto {
-  WalletBalanceModel toModel() => WalletBalanceModel(
-        accountType: accountType,
+  BalanceModel toModel() => BalanceModel(
         totalEquity: _parseAmount(totalEquity),
         totalWalletBalance: _parseAmount(totalWalletBalance),
         coins: coins.map((coin) => coin.toModel()).toList(),
