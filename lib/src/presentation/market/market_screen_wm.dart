@@ -2,14 +2,14 @@ import 'package:bybit/bybit.dart';
 import 'package:core/core.dart';
 import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
-import 'package:crypto_position/src/presentation/bybit/bybit_screen.dart';
-import 'package:crypto_position/src/presentation/bybit/bybit_screen_model.dart';
+import 'package:crypto_position/src/presentation/market/market_screen.dart';
+import 'package:crypto_position/src/presentation/market/market_screen_model.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
+class MarketScreenWm extends WidgetModel<MarketScreen, MarketScreenModel> {
   final apiKeyController = TextEditingController();
   final apiSecretController = TextEditingController();
 
@@ -35,7 +35,7 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   /// Connection errors from the session merged with trades errors.
   final ValueNotifier<String?> _error = ValueNotifier(null);
 
-  BybitScreenWm(super.model, {required BybitSessionService sessionService})
+  MarketScreenWm(super.model, {required BybitSessionService sessionService})
     : _sessionService = sessionService;
 
   @override
@@ -163,9 +163,9 @@ class BybitScreenWm extends WidgetModel<BybitScreen, BybitScreenModel> {
   }
 }
 
-BybitScreenWm bybitScreenWmFactory({required BuildContext context}) {
-  return BybitScreenWm(
-    BybitScreenModel(),
+MarketScreenWm marketScreenWmFactory({required BuildContext context}) {
+  return MarketScreenWm(
+    MarketScreenModel(),
     sessionService: context.read<BybitSessionService>(),
   );
 }

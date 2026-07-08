@@ -1,18 +1,18 @@
 import 'package:bybit/bybit.dart';
-import 'package:crypto_position/src/presentation/bybit/bybit_screen_wm.dart';
-import 'package:crypto_position/src/presentation/bybit/widgets/day_detail_view.dart';
-import 'package:crypto_position/src/presentation/bybit/widgets/settings_view.dart';
-import 'package:crypto_position/src/presentation/bybit/widgets/trade_calendar.dart';
-import 'package:crypto_position/src/presentation/bybit/widgets/trades_table.dart';
+import 'package:crypto_position/src/presentation/market/market_screen_wm.dart';
+import 'package:crypto_position/src/presentation/market/widgets/day_detail_view.dart';
+import 'package:crypto_position/src/presentation/market/widgets/settings_view.dart';
+import 'package:crypto_position/src/presentation/market/widgets/trade_calendar.dart';
+import 'package:crypto_position/src/presentation/market/widgets/trades_table.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
 
-class BybitScreen extends ElementaryWidget<BybitScreenWm> {
-  BybitScreen({super.key})
-    : super((context) => bybitScreenWmFactory(context: context));
+class MarketScreen extends ElementaryWidget<MarketScreenWm> {
+  MarketScreen({super.key})
+    : super((context) => marketScreenWmFactory(context: context));
 
   @override
-  Widget build(BybitScreenWm wm) {
+  Widget build(MarketScreenWm wm) {
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -33,7 +33,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildSettingsTab(BybitScreenWm wm) {
+  Widget _buildSettingsTab(MarketScreenWm wm) {
     return ValueListenableBuilder<bool>(
       valueListenable: wm.hasCredentials,
       builder: (context, hasCreds, _) {
@@ -60,7 +60,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildJournalTabGuarded(BybitScreenWm wm) {
+  Widget _buildJournalTabGuarded(MarketScreenWm wm) {
     return ValueListenableBuilder<bool>(
       valueListenable: wm.hasCredentials,
       builder: (context, hasCreds, _) {
@@ -74,7 +74,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildJournalTab(BuildContext context, BybitScreenWm wm) {
+  Widget _buildJournalTab(BuildContext context, MarketScreenWm wm) {
     return ValueListenableBuilder<bool>(
       valueListenable: wm.tradesLoading,
       builder: (context, isLoading, _) {
@@ -95,7 +95,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildNarrowJournal(BuildContext context, BybitScreenWm wm) {
+  Widget _buildNarrowJournal(BuildContext context, MarketScreenWm wm) {
     return ValueListenableBuilder<DateTime?>(
       valueListenable: wm.selectedDay,
       builder: (context, selectedDay, _) {
@@ -127,7 +127,7 @@ class BybitScreen extends ElementaryWidget<BybitScreenWm> {
     );
   }
 
-  Widget _buildWideJournal(BuildContext context, BybitScreenWm wm) {
+  Widget _buildWideJournal(BuildContext context, MarketScreenWm wm) {
     return ValueListenableBuilder<List<ClosedTradeModel>>(
       valueListenable: wm.trades,
       builder: (context, trades, _) {

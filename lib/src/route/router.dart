@@ -1,6 +1,6 @@
 import 'package:crypto_position/src/components/scaffold_with_nav_bar.dart';
 import 'package:crypto_position/src/presentation/home/home_screen.dart';
-import 'package:crypto_position/src/presentation/bybit/bybit_screen.dart';
+import 'package:crypto_position/src/presentation/market/market_screen.dart';
 import 'package:crypto_position/src/presentation/position_calculator/position_calculator.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -42,9 +42,9 @@ GoRouter get router => GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/bybit',
+              path: '/market',
               builder: (BuildContext context, GoRouterState state) {
-                return BybitScreen();
+                return MarketScreen();
               },
             ),
           ],

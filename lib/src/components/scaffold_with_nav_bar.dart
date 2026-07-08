@@ -9,9 +9,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Crypto Position'),
-      ),
+      appBar: AppBar(title: const Text('Crypto Position')),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
@@ -24,7 +22,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
           ),
           NavigationDestination(
             icon: Icon(Icons.currency_bitcoin),
-            label: 'Bybit',
+            label: 'Markets',
           ),
         ],
       ),
