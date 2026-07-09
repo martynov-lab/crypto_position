@@ -1,7 +1,10 @@
 import 'package:bybit/bybit.dart';
 import 'package:crypto_position/src/bybit_account_repository_factory.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/okx_account_repository_factory.dart';
+import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:network/network.dart';
+import 'package:okx/okx.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
 import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +34,11 @@ class PositionProvider extends StatelessWidget {
         create: (context) =>
             BybitAccountRepositoryFactory(context.read<BybitConfig>()),
       ),
+      Provider<OkxConfig>.value(value: const OkxConfig()),
+      Provider<OkxAccountRepositoryFactory>(
+        create: (context) =>
+            OkxAccountRepositoryFactory(context.read<OkxConfig>()),
+      ),
       Provider<ReconnectionService>(
         create: (_) => ReconnectionService(
           lifecycleService: AppLifecycleService(),
@@ -42,6 +50,14 @@ class PositionProvider extends StatelessWidget {
         create: (context) => BybitSessionService(
           storage: context.read<FlutterSecureStorage>(),
           accountFactory: context.read<BybitAccountRepositoryFactory>(),
+          reconnectionService: context.read<ReconnectionService>(),
+        ),
+        dispose: (_, value) => value.dispose(),
+      ),
+      Provider<OkxSessionService>(
+        create: (context) => OkxSessionService(
+          storage: context.read<FlutterSecureStorage>(),
+          accountFactory: context.read<OkxAccountRepositoryFactory>(),
           reconnectionService: context.read<ReconnectionService>(),
         ),
         dispose: (_, value) => value.dispose(),

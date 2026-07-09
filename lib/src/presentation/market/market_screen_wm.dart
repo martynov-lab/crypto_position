@@ -2,8 +2,10 @@ import 'package:bybit/bybit.dart';
 import 'package:core/core.dart';
 import 'package:crypto_position/src/bybit_account_session.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/market/market_screen.dart';
 import 'package:crypto_position/src/presentation/market/market_screen_model.dart';
+import 'package:crypto_position/src/presentation/market/widgets/settings_view.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,9 @@ import 'package:provider/provider.dart';
 class MarketScreenWm extends WidgetModel<MarketScreen, MarketScreenModel> {
   final apiKeyController = TextEditingController();
   final apiSecretController = TextEditingController();
+  final okxApiKeyController = TextEditingController();
+  final okxApiSecretController = TextEditingController();
+  final okxPassphraseController = TextEditingController();
 
   final ValueNotifier<List<ClosedTradeModel>> _trades = ValueNotifier([]);
   final ValueNotifier<bool> _tradesLoading = ValueNotifier(false);
@@ -30,13 +35,54 @@ class MarketScreenWm extends WidgetModel<MarketScreen, MarketScreenModel> {
   ValueListenable<DateTime> get selectedMonth => _selectedMonth;
   ValueListenable<DateTime?> get selectedDay => _selectedDay;
 
+  /// Connection cards shown on the Settings tab, one per exchange. Read the
+  /// current state of both session services; [connectionsListenable] triggers
+  /// rebuilds when any of that state changes.
+  List<ExchangeConnection> get connections => [
+    ExchangeConnection(
+      title: 'Подключение к Bybit',
+      hasCredentials: _sessionService.hasCredentials.value,
+      loading: _sessionService.loading.value,
+      error: _error.value,
+      apiKeyController: apiKeyController,
+      apiSecretController: apiSecretController,
+      onSaveCredentials: saveCredentials,
+      onLogout: logout,
+    ),
+    ExchangeConnection(
+      title: 'Подключение к OKX',
+      hasCredentials: _okxSessionService.hasCredentials.value,
+      loading: _okxSessionService.loading.value,
+      error: _okxSessionService.error.value,
+      apiKeyController: okxApiKeyController,
+      apiSecretController: okxApiSecretController,
+      passphraseController: okxPassphraseController,
+      onSaveCredentials: saveOkxCredentials,
+      onLogout: okxLogout,
+    ),
+  ];
+
+  Listenable get connectionsListenable => Listenable.merge([
+    _sessionService.hasCredentials,
+    _sessionService.loading,
+    _error,
+    _okxSessionService.hasCredentials,
+    _okxSessionService.loading,
+    _okxSessionService.error,
+  ]);
+
   final BybitSessionService _sessionService;
+  final OkxSessionService _okxSessionService;
 
   /// Connection errors from the session merged with trades errors.
   final ValueNotifier<String?> _error = ValueNotifier(null);
 
-  MarketScreenWm(super.model, {required BybitSessionService sessionService})
-    : _sessionService = sessionService;
+  MarketScreenWm(
+    super.model, {
+    required BybitSessionService sessionService,
+    required OkxSessionService okxSessionService,
+  })  : _sessionService = sessionService,
+        _okxSessionService = okxSessionService;
 
   @override
   void initWidgetModel() {
@@ -56,6 +102,9 @@ class MarketScreenWm extends WidgetModel<MarketScreen, MarketScreenModel> {
     _sessionService.session.removeListener(_onSessionChanged);
     apiKeyController.dispose();
     apiSecretController.dispose();
+    okxApiKeyController.dispose();
+    okxApiSecretController.dispose();
+    okxPassphraseController.dispose();
     super.dispose();
   }
 
@@ -71,6 +120,19 @@ class MarketScreenWm extends WidgetModel<MarketScreen, MarketScreenModel> {
     _trades.value = [];
     _tradesError.value = null;
     await _sessionService.logout();
+  }
+
+  Future<void> saveOkxCredentials() async {
+    final key = okxApiKeyController.text.trim();
+    final secret = okxApiSecretController.text.trim();
+    final passphrase = okxPassphraseController.text.trim();
+    if (key.isEmpty || secret.isEmpty || passphrase.isEmpty) return;
+
+    await _okxSessionService.saveCredentials(key, secret, passphrase);
+  }
+
+  Future<void> okxLogout() async {
+    await _okxSessionService.logout();
   }
 
   void selectDay(DateTime? day) {
@@ -167,5 +229,6 @@ MarketScreenWm marketScreenWmFactory({required BuildContext context}) {
   return MarketScreenWm(
     MarketScreenModel(),
     sessionService: context.read<BybitSessionService>(),
+    okxSessionService: context.read<OkxSessionService>(),
   );
 }

@@ -25,7 +25,13 @@ class OkxAuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final timestamp = DateTime.now().toUtc().toIso8601String();
+    // OKX requires millisecond precision (e.g. 2020-12-08T09:08:57.715Z).
+    // DateTime.toIso8601String() appends microseconds, which OKX rejects, so
+    // rebuild the instant from millis only.
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(
+      DateTime.now().millisecondsSinceEpoch,
+      isUtc: true,
+    ).toIso8601String();
     final method = options.method.toUpperCase();
 
     // Sign the path + query exactly as it goes on the wire.

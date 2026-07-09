@@ -34,29 +34,9 @@ class MarketScreen extends ElementaryWidget<MarketScreenWm> {
   }
 
   Widget _buildSettingsTab(MarketScreenWm wm) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: wm.hasCredentials,
-      builder: (context, hasCreds, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: wm.loading,
-          builder: (context, isLoading, _) {
-            return ValueListenableBuilder<String?>(
-              valueListenable: wm.error,
-              builder: (context, err, _) {
-                return SettingsView(
-                  hasCredentials: hasCreds,
-                  loading: isLoading,
-                  error: err,
-                  apiKeyController: wm.apiKeyController,
-                  apiSecretController: wm.apiSecretController,
-                  onSaveCredentials: wm.saveCredentials,
-                  onLogout: wm.logout,
-                );
-              },
-            );
-          },
-        );
-      },
+    return ListenableBuilder(
+      listenable: wm.connectionsListenable,
+      builder: (context, _) => SettingsView(connections: wm.connections),
     );
   }
 
