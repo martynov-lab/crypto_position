@@ -21,8 +21,12 @@ class ScaffoldWithNavBar extends StatelessWidget {
             label: 'Calculator',
           ),
           NavigationDestination(
-            icon: Icon(Icons.currency_bitcoin),
-            label: 'Markets',
+            icon: Icon(Icons.menu_book),
+            label: 'Journal',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

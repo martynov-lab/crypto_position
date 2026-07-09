@@ -1,4 +1,4 @@
-import 'package:bybit/bybit.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/material.dart';
 
 class TradesTable extends StatelessWidget {

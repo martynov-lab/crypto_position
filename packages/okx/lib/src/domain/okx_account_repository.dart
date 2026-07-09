@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../api/account_subscriber.dart';
 import '../api/dto/position_dto.dart';
 import '../api/mappers/balance_mapper.dart';
+import '../api/mappers/closed_trade_mapper.dart';
 import '../api/mappers/position_mapper.dart';
 import '../api/mark_price_subscriptions.dart';
 import '../api/okx_account_api.dart';
@@ -73,6 +74,23 @@ class OkxAccountRepository implements ExchangeAccountRepository {
       _balance.value = model;
       return model;
     });
+  }
+
+  /// Closed positions (realized-PnL history) whose close time falls in
+  /// [[startDate], [endDate]). Mirrors Bybit's `fetchClosedTrades` so the trade
+  /// journal renders both exchanges the same way.
+  Future<Result<List<ClosedTradeModel>, Object>> fetchClosedTrades({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final result = await _api.fetchPositionsHistory(
+      before: startDate?.millisecondsSinceEpoch,
+      after: endDate?.millisecondsSinceEpoch,
+    );
+
+    return result.map(
+      (dtoList) => dtoList.map((dto) => dto.toModel()).toList(),
+    );
   }
 
   @override

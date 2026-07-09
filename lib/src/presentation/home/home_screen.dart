@@ -15,7 +15,7 @@ class HomeScreen extends ElementaryWidget<HomeScreenWm> {
       builder: (context, hasCreds, _) {
         if (!hasCreds) {
           return const Center(
-            child: Text('Подключите API ключ на вкладке Markets'),
+            child: Text('Подключите API ключ на вкладке Settings'),
           );
         }
 

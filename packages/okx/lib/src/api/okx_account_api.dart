@@ -3,6 +3,7 @@ import 'package:network/network.dart';
 
 import 'dto/balance_dto.dart';
 import 'dto/position_dto.dart';
+import 'dto/positions_history_dto.dart';
 
 class OkxAccountApi {
   final RestClient _client;
@@ -47,6 +48,43 @@ class OkxAccountApi {
             return const Ok(BalanceDto(totalEq: '0', details: []));
           }
           return Ok(BalanceDto.fromJson(list.first! as Map<String, Object?>));
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
+      (error) => Err(error),
+    );
+  }
+
+  /// Fetches closed positions (realized-PnL history). [before]/[after] bound
+  /// the close time (`uTime`) in milliseconds since epoch; OKX caps [limit] at
+  /// 100.
+  Future<Result<List<PositionsHistoryDto>, Object>> fetchPositionsHistory({
+    int? before,
+    int? after,
+    int limit = 100,
+  }) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v5/account/positions-history',
+      queryParams: {
+        'before': ?before?.toString(),
+        'after': ?after?.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    return response.fold<Result<List<PositionsHistoryDto>, Object>>(
+      (data) {
+        final envelopeError = _envelopeError(data);
+        if (envelopeError != null) return Err(envelopeError);
+        try {
+          final list = data['data'] as List<Object?>? ?? const [];
+          return Ok(
+            list
+                .map((e) =>
+                    PositionsHistoryDto.fromJson(e! as Map<String, Object?>))
+                .toList(),
+          );
         } on Object catch (error) {
           return Err(error);
         }

@@ -1,4 +1,5 @@
-import '../../domain/models/closed_trade_model.dart';
+import 'package:exchange/exchange.dart';
+
 import '../dto/closed_pnl_dto.dart';
 
 extension ClosedTradeMapper on ClosedPnlDto {

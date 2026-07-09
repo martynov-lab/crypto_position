@@ -12,7 +12,6 @@ import '../api/mappers/wallet_balance_mapper.dart';
 import '../api/position_subscriber.dart';
 import '../api/ticker_subscriptions.dart';
 import '../api/wallet_subscriber.dart';
-import 'models/closed_trade_model.dart';
 
 class BybitAccountRepository implements ExchangeAccountRepository {
   final BybitAccountApi _api;

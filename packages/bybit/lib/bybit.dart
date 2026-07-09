@@ -12,6 +12,5 @@ export 'src/api/position_subscriber.dart';
 export 'src/api/ticker_subscriptions.dart';
 export 'src/api/wallet_subscriber.dart';
 export 'src/domain/bybit_account_repository.dart';
-export 'src/domain/models/closed_trade_model.dart';
 export 'src/service/bybit_auth_interceptor.dart';
 export 'src/service/bybit_config.dart';
