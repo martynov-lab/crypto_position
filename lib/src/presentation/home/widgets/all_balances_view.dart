@@ -15,13 +15,16 @@ class AllBalancesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalBalance =
-        accounts.fold<double>(0, (sum, a) => sum + a.totalBalance);
+    final totalBalance = accounts.fold<double>(
+      0,
+      (sum, a) => sum + a.totalBalance,
+    );
     final totalPnl = accounts.fold<double>(0, (sum, a) => sum + a.totalPnl);
 
     final balanceCards = accounts.where((a) => a.totalBalance != 0).toList();
-    final positionAccounts =
-        accounts.where((a) => a.positions.isNotEmpty).toList();
+    final positionAccounts = accounts
+        .where((a) => a.positions.isNotEmpty)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -67,16 +70,16 @@ class AllBalancesView extends StatelessWidget {
                 Text(
                   '\$${totalBalance.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 if (totalPnl != 0) ...[
                   const SizedBox(width: 8),
                   Text(
                     '${totalPnl >= 0 ? '+' : ''}${totalPnl.toStringAsFixed(2)}',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: totalPnl >= 0 ? Colors.green : Colors.red,
-                        ),
+                      color: totalPnl >= 0 ? Colors.green : Colors.red,
+                    ),
                   ),
                 ],
               ],

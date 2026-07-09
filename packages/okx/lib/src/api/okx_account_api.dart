@@ -9,6 +9,29 @@ class OkxAccountApi {
 
   const OkxAccountApi(this._client);
 
+  /// Public server time in milliseconds since epoch. Unauthenticated; used to
+  /// correct local clock drift before signing private requests.
+  Future<Result<int, Object>> fetchServerTime() async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v5/public/time',
+    );
+
+    return response.fold<Result<int, Object>>(
+      (data) {
+        final envelopeError = _envelopeError(data);
+        if (envelopeError != null) return Err(envelopeError);
+        try {
+          final list = data['data'] as List<Object?>? ?? const [];
+          final ts = (list.first! as Map<String, Object?>)['ts'] as String;
+          return Ok(int.parse(ts));
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
+      (error) => Err(error),
+    );
+  }
+
   Future<Result<BalanceDto, Object>> fetchBalance() async {
     final response = await _client.get<Map<String, Object?>>(
       '/api/v5/account/balance',
@@ -32,12 +55,14 @@ class OkxAccountApi {
     );
   }
 
+  /// Fetches open positions. With [instType] null OKX returns positions of
+  /// every instrument type (SWAP, FUTURES, MARGIN, OPTION); pass one to filter.
   Future<Result<List<PositionDto>, Object>> fetchPositions({
-    String instType = 'SWAP',
+    String? instType,
   }) async {
     final response = await _client.get<Map<String, Object?>>(
       '/api/v5/account/positions',
-      queryParams: {'instType': instType},
+      queryParams: {'instType': ?instType},
     );
 
     return response.fold<Result<List<PositionDto>, Object>>(

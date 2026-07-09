@@ -18,6 +18,7 @@ class OkxAccountRepositoryFactory {
     required String apiSecret,
     required String passphrase,
   }) {
+    final clock = OkxClock();
     final dio = createSharedHttpClient()
       ..interceptors.addAll([
         // BaseUrl must be set before the auth interceptor signs the request.
@@ -26,6 +27,7 @@ class OkxAccountRepositoryFactory {
           apiKey: apiKey,
           apiSecret: apiSecret,
           passphrase: passphrase,
+          clock: clock,
           demoTrading: _config.demoTrading,
         ),
         if (kDebugMode) LogInterceptor(requestBody: true, responseBody: true),
@@ -42,6 +44,8 @@ class OkxAccountRepositoryFactory {
         apiKey: apiKey,
         apiSecret: apiSecret,
         passphrase: passphrase,
+        // Corrected to server time for the same reason as REST (error 50102).
+        timestamp: clock.nowMs() ~/ 1000,
       ),
       wsService: wsService,
       protocol: protocol,
@@ -59,6 +63,7 @@ class OkxAccountRepositoryFactory {
     return OkxAccountSession(
       repository: OkxAccountRepository(
         okxAccountApi: OkxAccountApi(RestClient(dio)),
+        clock: clock,
         accountSubscriber: accountSubscriber,
         positionSubscriber: positionSubscriber,
         markPriceSubscriptions: markPriceSubscriptions,

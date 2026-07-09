@@ -11,4 +11,5 @@ export 'src/api/okx_ws_protocol.dart';
 export 'src/api/position_subscriber.dart';
 export 'src/domain/okx_account_repository.dart';
 export 'src/service/okx_auth_interceptor.dart';
+export 'src/service/okx_clock.dart';
 export 'src/service/okx_config.dart';

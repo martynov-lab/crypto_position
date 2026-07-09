@@ -11,9 +11,11 @@ import '../api/mappers/position_mapper.dart';
 import '../api/mark_price_subscriptions.dart';
 import '../api/okx_account_api.dart';
 import '../api/position_subscriber.dart';
+import '../service/okx_clock.dart';
 
 class OkxAccountRepository implements ExchangeAccountRepository {
   final OkxAccountApi _api;
+  final OkxClock _clock;
   final MarkPriceSubscriptions? _markPriceSubscriptions;
   final ValueNotifier<BalanceModel?> _balance = ValueNotifier(null);
   final ValueNotifier<List<PositionModel>?> _positions = ValueNotifier(null);
@@ -27,10 +29,12 @@ class OkxAccountRepository implements ExchangeAccountRepository {
 
   OkxAccountRepository({
     required OkxAccountApi okxAccountApi,
+    required OkxClock clock,
     AccountSubscriber? accountSubscriber,
     PositionSubscriber? positionSubscriber,
     MarkPriceSubscriptions? markPriceSubscriptions,
   })  : _api = okxAccountApi,
+        _clock = clock,
         _markPriceSubscriptions = markPriceSubscriptions {
     _accountSub = accountSubscriber?.stream.listen(
       (dto) => _balance.value = dto.toModel(),
@@ -47,6 +51,18 @@ class OkxAccountRepository implements ExchangeAccountRepository {
   /// `positions` channel and re-priced on every public mark-price tick.
   @override
   ValueListenable<List<PositionModel>?> get positions => _positions;
+
+  /// Aligns the signing clock with OKX server time so signed requests stay
+  /// inside OKX's ~30s window. Best-effort: on failure the previous offset
+  /// (or local time) is kept. Call before the first signed request.
+  Future<void> syncServerTime() async {
+    final result = await _api.fetchServerTime();
+    result.fold(
+      (serverMs) =>
+          _clock.offsetMs = serverMs - DateTime.now().millisecondsSinceEpoch,
+      (_) {},
+    );
+  }
 
   @override
   Future<Result<BalanceModel, Object>> fetchBalance() async {

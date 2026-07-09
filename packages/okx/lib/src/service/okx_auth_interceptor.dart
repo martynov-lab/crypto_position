@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import 'okx_clock.dart';
+
 /// Signs OKX REST requests.
 ///
 /// OKX signature: Base64(HMAC-SHA256(`timestamp + method + requestPath + body`,
@@ -15,11 +17,13 @@ class OkxAuthInterceptor extends Interceptor {
   final String apiSecret;
   final String passphrase;
   final bool demoTrading;
+  final OkxClock clock;
 
   OkxAuthInterceptor({
     required this.apiKey,
     required this.apiSecret,
     required this.passphrase,
+    required this.clock,
     this.demoTrading = false,
   });
 
@@ -27,9 +31,10 @@ class OkxAuthInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     // OKX requires millisecond precision (e.g. 2020-12-08T09:08:57.715Z).
     // DateTime.toIso8601String() appends microseconds, which OKX rejects, so
-    // rebuild the instant from millis only.
+    // rebuild the instant from millis only. [clock] corrects for local clock
+    // drift beyond OKX's ~30s window (error 50102).
     final timestamp = DateTime.fromMillisecondsSinceEpoch(
-      DateTime.now().millisecondsSinceEpoch,
+      clock.nowMs(),
       isUtc: true,
     ).toIso8601String();
     final method = options.method.toUpperCase();

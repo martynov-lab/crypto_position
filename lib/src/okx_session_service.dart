@@ -100,6 +100,11 @@ class OkxSessionService {
     );
     _session.value = session;
 
+    // Align the signing clock with OKX server time first: local clock drift
+    // beyond ~30s otherwise gets every signed request rejected (error 50102).
+    await session.repository.syncServerTime();
+    if (_session.value != session) return;
+
     // On success the repository stores the balance in its own notifier.
     final result = await session.repository.fetchBalance();
     if (_session.value != session) return;
