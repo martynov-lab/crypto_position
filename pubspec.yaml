@@ -18,6 +18,8 @@ dependencies:
     path: packages/bybit
   okx:
     path: packages/okx
+  bitget:
+    path: packages/bitget
   exchange:
     path: packages/exchange
   dio: ^5.8.0+1

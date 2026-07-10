@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/settings/settings_screen.dart';
@@ -16,16 +17,22 @@ class SettingsScreenWm
   final okxApiKeyController = TextEditingController();
   final okxApiSecretController = TextEditingController();
   final okxPassphraseController = TextEditingController();
+  final bitgetApiKeyController = TextEditingController();
+  final bitgetApiSecretController = TextEditingController();
+  final bitgetPassphraseController = TextEditingController();
 
   final BybitSessionService _sessionService;
   final OkxSessionService _okxSessionService;
+  final BitgetSessionService _bitgetSessionService;
 
   SettingsScreenWm(
     super.model, {
     required BybitSessionService sessionService,
     required OkxSessionService okxSessionService,
+    required BitgetSessionService bitgetSessionService,
   })  : _sessionService = sessionService,
-        _okxSessionService = okxSessionService;
+        _okxSessionService = okxSessionService,
+        _bitgetSessionService = bitgetSessionService;
 
   /// Connection cards, one per exchange. Reads the current state of both
   /// session services; [connectionsListenable] triggers rebuilds when any of
@@ -52,6 +59,17 @@ class SettingsScreenWm
       onSaveCredentials: saveOkxCredentials,
       onLogout: okxLogout,
     ),
+    ExchangeConnection(
+      title: 'Подключение к Bitget',
+      hasCredentials: _bitgetSessionService.hasCredentials.value,
+      loading: _bitgetSessionService.loading.value,
+      error: _bitgetSessionService.error.value,
+      apiKeyController: bitgetApiKeyController,
+      apiSecretController: bitgetApiSecretController,
+      passphraseController: bitgetPassphraseController,
+      onSaveCredentials: saveBitgetCredentials,
+      onLogout: bitgetLogout,
+    ),
   ];
 
   Listenable get connectionsListenable => Listenable.merge([
@@ -61,6 +79,9 @@ class SettingsScreenWm
     _okxSessionService.hasCredentials,
     _okxSessionService.loading,
     _okxSessionService.error,
+    _bitgetSessionService.hasCredentials,
+    _bitgetSessionService.loading,
+    _bitgetSessionService.error,
   ]);
 
   @override
@@ -70,6 +91,9 @@ class SettingsScreenWm
     okxApiKeyController.dispose();
     okxApiSecretController.dispose();
     okxPassphraseController.dispose();
+    bitgetApiKeyController.dispose();
+    bitgetApiSecretController.dispose();
+    bitgetPassphraseController.dispose();
     super.dispose();
   }
 
@@ -97,6 +121,19 @@ class SettingsScreenWm
   Future<void> okxLogout() async {
     await _okxSessionService.logout();
   }
+
+  Future<void> saveBitgetCredentials() async {
+    final key = bitgetApiKeyController.text.trim();
+    final secret = bitgetApiSecretController.text.trim();
+    final passphrase = bitgetPassphraseController.text.trim();
+    if (key.isEmpty || secret.isEmpty || passphrase.isEmpty) return;
+
+    await _bitgetSessionService.saveCredentials(key, secret, passphrase);
+  }
+
+  Future<void> bitgetLogout() async {
+    await _bitgetSessionService.logout();
+  }
 }
 
 SettingsScreenWm settingsScreenWmFactory({required BuildContext context}) {
@@ -104,5 +141,6 @@ SettingsScreenWm settingsScreenWmFactory({required BuildContext context}) {
     SettingsScreenModel(),
     sessionService: context.read<BybitSessionService>(),
     okxSessionService: context.read<OkxSessionService>(),
+    bitgetSessionService: context.read<BitgetSessionService>(),
   );
 }

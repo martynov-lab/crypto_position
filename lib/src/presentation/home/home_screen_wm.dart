@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/home/exchange_account.dart';
@@ -14,6 +15,7 @@ import 'package:provider/provider.dart';
 class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   final BybitSessionService _bybit;
   final OkxSessionService _okx;
+  final BitgetSessionService _bitget;
 
   final _accounts = ValueNotifier<List<ExchangeAccount>>([]);
   final _hasAnyCredentials = ValueNotifier<bool>(false);
@@ -27,23 +29,29 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   // when a session is replaced or closed.
   ExchangeAccountRepository? _boundBybitRepo;
   ExchangeAccountRepository? _boundOkxRepo;
+  ExchangeAccountRepository? _boundBitgetRepo;
 
   HomeScreenWm(
     super.model, {
     required BybitSessionService bybit,
     required OkxSessionService okx,
+    required BitgetSessionService bitget,
   })  : _bybit = bybit,
-        _okx = okx;
+        _okx = okx,
+        _bitget = bitget;
 
   @override
   void initWidgetModel() {
     super.initWidgetModel();
     _bybit.session.addListener(_onSessionsChanged);
     _okx.session.addListener(_onSessionsChanged);
+    _bitget.session.addListener(_onSessionsChanged);
     _bybit.hasCredentials.addListener(_syncStatus);
     _okx.hasCredentials.addListener(_syncStatus);
+    _bitget.hasCredentials.addListener(_syncStatus);
     _bybit.loading.addListener(_syncStatus);
     _okx.loading.addListener(_syncStatus);
+    _bitget.loading.addListener(_syncStatus);
     _onSessionsChanged();
     _syncStatus();
   }
@@ -52,12 +60,16 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   void dispose() {
     _bybit.session.removeListener(_onSessionsChanged);
     _okx.session.removeListener(_onSessionsChanged);
+    _bitget.session.removeListener(_onSessionsChanged);
     _bybit.hasCredentials.removeListener(_syncStatus);
     _okx.hasCredentials.removeListener(_syncStatus);
+    _bitget.hasCredentials.removeListener(_syncStatus);
     _bybit.loading.removeListener(_syncStatus);
     _okx.loading.removeListener(_syncStatus);
+    _bitget.loading.removeListener(_syncStatus);
     _unbind(_boundBybitRepo);
     _unbind(_boundOkxRepo);
+    _unbind(_boundBitgetRepo);
     _accounts.dispose();
     _hasAnyCredentials.dispose();
     _loading.dispose();
@@ -67,6 +79,8 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   void _onSessionsChanged() {
     _boundBybitRepo = _rebind(_boundBybitRepo, _bybit.session.value?.repository);
     _boundOkxRepo = _rebind(_boundOkxRepo, _okx.session.value?.repository);
+    _boundBitgetRepo =
+        _rebind(_boundBitgetRepo, _bitget.session.value?.repository);
     _rebuild();
   }
 
@@ -91,6 +105,7 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     final list = <ExchangeAccount>[];
     _addAccount(list, 'Bybit', _bybit.session.value?.repository);
     _addAccount(list, 'OKX', _okx.session.value?.repository);
+    _addAccount(list, 'Bitget', _bitget.session.value?.repository);
     _accounts.value = list;
   }
 
@@ -111,9 +126,12 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   }
 
   void _syncStatus() {
-    _hasAnyCredentials.value =
-        _bybit.hasCredentials.value || _okx.hasCredentials.value;
-    _loading.value = _bybit.loading.value || _okx.loading.value;
+    _hasAnyCredentials.value = _bybit.hasCredentials.value ||
+        _okx.hasCredentials.value ||
+        _bitget.hasCredentials.value;
+    _loading.value = _bybit.loading.value ||
+        _okx.loading.value ||
+        _bitget.loading.value;
   }
 }
 
@@ -122,5 +140,6 @@ HomeScreenWm homeScreenWmFactory({required BuildContext context}) {
     HomeScreenModel(),
     bybit: context.read<BybitSessionService>(),
     okx: context.read<OkxSessionService>(),
+    bitget: context.read<BitgetSessionService>(),
   );
 }
