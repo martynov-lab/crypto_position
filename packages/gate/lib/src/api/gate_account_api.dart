@@ -4,6 +4,7 @@ import 'package:network/network.dart';
 import 'dto/balance_dto.dart';
 import 'dto/position_close_dto.dart';
 import 'dto/position_dto.dart';
+import 'dto/unified_account_dto.dart';
 
 /// Gate futures scoped to the USDT-settled market.
 const _base = '/api/v4/futures/usdt';
@@ -25,6 +26,25 @@ class GateAccountApi {
       (data) {
         try {
           return Ok(GateAccountDto.fromJson(data));
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
+      (error) => Err(error),
+    );
+  }
+
+  /// The unified account (a single object). Used as a fallback for users on a
+  /// unified account, whose funds do not appear on the futures endpoint.
+  Future<Result<UnifiedAccountDto, Object>> fetchUnifiedBalance() async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v4/unified/accounts',
+    );
+
+    return response.fold<Result<UnifiedAccountDto, Object>>(
+      (data) {
+        try {
+          return Ok(UnifiedAccountDto.fromJson(data));
         } on Object catch (error) {
           return Err(error);
         }

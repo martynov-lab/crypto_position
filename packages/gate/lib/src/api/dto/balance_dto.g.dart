@@ -28,6 +28,14 @@ GateAccountDto _$GateAccountDtoFromJson(Map<String, dynamic> json) =>
             'cross_available',
             (v) => v as String? ?? '0',
           ),
+          crossInitialMargin: $checkedConvert(
+            'cross_initial_margin',
+            (v) => v as String? ?? '0',
+          ),
+          crossOrderMargin: $checkedConvert(
+            'cross_order_margin',
+            (v) => v as String? ?? '0',
+          ),
           crossUnrealisedPnl: $checkedConvert(
             'cross_unrealised_pnl',
             (v) => v as String? ?? '0',
@@ -39,6 +47,8 @@ GateAccountDto _$GateAccountDtoFromJson(Map<String, dynamic> json) =>
         'unrealisedPnl': 'unrealised_pnl',
         'crossMarginBalance': 'cross_margin_balance',
         'crossAvailable': 'cross_available',
+        'crossInitialMargin': 'cross_initial_margin',
+        'crossOrderMargin': 'cross_order_margin',
         'crossUnrealisedPnl': 'cross_unrealised_pnl',
       },
     );

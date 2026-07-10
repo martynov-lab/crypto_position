@@ -1,6 +1,7 @@
 import 'package:gate/gate.dart';
-// Closed-trade history is internal to the package (like OKX); import directly.
+// These are internal to the package (like OKX's history); import directly.
 import 'package:gate/src/api/dto/position_close_dto.dart';
+import 'package:gate/src/api/dto/unified_account_dto.dart';
 import 'package:gate/src/api/mappers/closed_trade_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +21,50 @@ void main() {
       expect(model.coins.single.coin, 'USDT');
       expect(model.coins.single.walletBalance, 1200);
       expect(model.coins.single.unrealisedPnl, 25.5);
+    });
+
+    test('uses cross_margin_balance when isolated total is 0', () {
+      final model = GateAccountDto.fromJson({
+        'currency': 'USDT',
+        'total': '0',
+        'available': '0',
+        'cross_margin_balance': '900',
+        'cross_available': '850',
+      }).toModel();
+
+      expect(model.totalWalletBalance, 900);
+      expect(model.coins.single.walletBalance, 850);
+    });
+
+    test('single_currency cross account: equity = free + locked + uPnL', () {
+      // Real shape: total/available are 0, balance lives in cross_available and
+      // cross_margin_balance is absent.
+      final model = GateAccountDto.fromJson({
+        'currency': 'USDT',
+        'total': '0',
+        'available': '0',
+        'cross_available': '99.983',
+        'cross_initial_margin': '10',
+        'cross_order_margin': '5',
+        'cross_unrealised_pnl': '2',
+      }).toModel();
+
+      expect(model.totalWalletBalance, closeTo(116.983, 1e-9));
+      expect(model.coins.single.walletBalance, 99.983);
+    });
+  });
+
+  group('UnifiedBalanceMapper', () {
+    test('uses unified account equity, falling back to total', () {
+      final model = UnifiedAccountDto.fromJson({
+        'user_id': 7,
+        'total': '2000',
+        'unified_account_total_equity': '2100.75',
+      }).toModel();
+
+      expect(model.totalEquity, 2100.75);
+      expect(model.totalWalletBalance, 2100.75);
+      expect(model.coins.single.coin, 'USDT');
     });
   });
 

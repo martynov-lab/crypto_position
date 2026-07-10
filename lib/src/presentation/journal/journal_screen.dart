@@ -10,15 +10,17 @@ class JournalScreen extends ElementaryWidget<JournalScreenWm> {
   @override
   Widget build(JournalScreenWm wm) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: [
           const TabBar(
+            isScrollable: true,
             tabs: [
               Tab(text: 'Bybit'),
               Tab(text: 'OKX'),
               Tab(text: 'BitGet'),
               Tab(text: 'Gate'),
+              Tab(text: 'MEXC'),
             ],
           ),
           Expanded(
@@ -39,6 +41,10 @@ class JournalScreen extends ElementaryWidget<JournalScreenWm> {
                 ExchangeJournalView(
                   journal: wm.gateJournal,
                   hasCredentials: wm.gateHasCredentials,
+                ),
+                ExchangeJournalView(
+                  journal: wm.mexcJournal,
+                  hasCredentials: wm.mexcHasCredentials,
                 ),
               ],
             ),

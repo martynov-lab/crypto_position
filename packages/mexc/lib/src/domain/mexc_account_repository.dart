@@ -4,119 +4,137 @@ import 'package:core/core.dart';
 import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
 
+import '../api/account_subscriber.dart';
+import '../api/dto/balance_dto.dart';
 import '../api/dto/position_dto.dart';
-import '../api/gate_account_api.dart';
 import '../api/mappers/balance_mapper.dart';
 import '../api/mappers/closed_trade_mapper.dart';
 import '../api/mappers/position_mapper.dart';
+import '../api/mexc_account_api.dart';
 import '../api/position_subscriber.dart';
 import '../api/ticker_subscriptions.dart';
 
-class GateAccountRepository implements ExchangeAccountRepository {
-  final GateAccountApi _api;
+class MexcAccountRepository implements ExchangeAccountRepository {
+  final MexcAccountApi _api;
   final TickerSubscriptions? _tickerSubscriptions;
   final ValueNotifier<BalanceModel?> _balance = ValueNotifier(null);
   final ValueNotifier<List<PositionModel>?> _positions = ValueNotifier(null);
 
-  /// Open positions keyed by '$contract#$side'.
+  /// Open positions keyed by '$symbol#$side'.
   final _positionsByKey = <String, PositionModel>{};
   final _tickerSubs = <String, StreamSubscription<void>>{};
 
+  /// symbol -> contractSize multiplier, fetched once from the public specs.
+  final _contractSizes = <String, double>{};
+
+  StreamSubscription<void>? _accountSub;
   StreamSubscription<void>? _positionSub;
 
-  /// Numeric account id, learned from [fetchBalance]; Gate needs it to
-  /// subscribe to the private positions channel.
-  int? userId;
-
-  GateAccountRepository({
-    required GateAccountApi gateAccountApi,
+  MexcAccountRepository({
+    required MexcAccountApi mexcAccountApi,
+    AccountSubscriber? accountSubscriber,
     PositionSubscriber? positionSubscriber,
     TickerSubscriptions? tickerSubscriptions,
-  })  : _api = gateAccountApi,
+  })  : _api = mexcAccountApi,
         _tickerSubscriptions = tickerSubscriptions {
+    _accountSub = accountSubscriber?.stream.listen((dto) {
+      // The USDT asset carries the account total; ignore other-currency pushes.
+      if (dto.currency == 'USDT') {
+        _balance.value = MexcBalanceDto([dto]).toModel();
+      }
+    });
     _positionSub = positionSubscriber?.stream.listen(_onPositionEvent);
   }
 
-  /// Current balance: filled by [fetchBalance] (REST). Gate's private balance
-  /// channel is intentionally not wired; unrealised PnL still updates live via
-  /// the per-position ticker stream.
   @override
   ValueListenable<BalanceModel?> get balance => _balance;
 
-  /// Open positions: seeded by [fetchPositions], updated by the private
-  /// `futures.positions` channel and re-priced on every public ticker tick.
   @override
   ValueListenable<List<PositionModel>?> get positions => _positions;
 
   @override
   Future<Result<BalanceModel, Object>> fetchBalance() async {
     final result = await _api.fetchBalance();
-
-    switch (result) {
-      case Err(:final error):
-        return Err(error);
-      case Ok(:final value):
-        userId = value.user;
-        var model = value.toModel();
-        // Unified-account users see 0 on the futures endpoint because their
-        // funds live in one shared wallet; fall back to the unified account.
-        if (model.totalWalletBalance == 0) {
-          final unified = await _api.fetchUnifiedBalance();
-          if (unified case Ok(value: final unifiedDto)) {
-            final unifiedModel = unifiedDto.toModel();
-            if (unifiedModel.totalWalletBalance > 0) {
-              if (unifiedDto.userId != 0) userId = unifiedDto.userId;
-              model = unifiedModel;
-            }
-          }
-        }
-        _balance.value = model;
-        return Ok(model);
-    }
+    return result.map((dto) {
+      final model = dto.toModel();
+      _balance.value = model;
+      return model;
+    });
   }
 
-  /// Closed positions (realized-PnL history) whose close time falls in
-  /// [[startDate], [endDate]). Mirrors the other exchanges' `fetchClosedTrades`
-  /// so the trade journal renders every exchange the same way.
+  /// Closed positions whose close time falls in [[startDate], [endDate]). MEXC
+  /// pages instead of filtering by time, so we fetch the most recent page and
+  /// filter here (older trades beyond one page are not returned).
   Future<Result<List<ClosedTradeModel>, Object>> fetchClosedTrades({
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    final result = await _api.fetchPositionClose(
-      from: startDate != null ? startDate.millisecondsSinceEpoch ~/ 1000 : null,
-      to: endDate != null ? endDate.millisecondsSinceEpoch ~/ 1000 : null,
-    );
-
+    await _ensureContractSizes();
+    final result = await _api.fetchHistoryPositions();
     return result.map(
-      (dtoList) => dtoList.map((dto) => dto.toModel()).toList(),
+      (dtoList) => dtoList
+          .map((dto) => dto.toModel(_contractSize(dto.symbol)))
+          .where((trade) => _inRange(trade.updatedAt, startDate, endDate))
+          .toList(),
     );
   }
 
   @override
   Future<Result<List<PositionModel>, Object>> fetchPositions() async {
+    await _ensureContractSizes();
     final result = await _api.fetchPositions();
 
     return result.map((dtoList) {
-      // Gate lists every contract the user has touched, including flat ones.
-      final models =
-          dtoList.map((dto) => dto.toModel()).where((m) => m.size > 0).toList();
+      final models = dtoList
+          .where((dto) => dto.state != 3 && dto.holdVol != 0)
+          .map((dto) => dto.toModel(_contractSize(dto.symbol)))
+          .toList();
       _positionsByKey
         ..clear()
         ..addEntries(models.map((model) => MapEntry(_key(model), model)));
       _publishPositions();
       _syncTickerSubscriptions();
+      // MEXC's position endpoint has no mark/PnL; seed both from the tickers.
+      unawaited(_seedMarkPrices());
       return models;
     });
   }
 
+  Future<void> _seedMarkPrices() async {
+    final result = await _api.fetchTickers();
+    result.fold(
+      (tickers) {
+        for (final ticker in tickers) {
+          final mark = ticker.fairPrice;
+          if (mark != null) _applyMarkPrice(ticker.symbol, mark.toDouble());
+        }
+      },
+      (_) {},
+    );
+  }
+
+  Future<void> _ensureContractSizes() async {
+    if (_contractSizes.isNotEmpty) return;
+    final result = await _api.fetchContractDetail();
+    result.fold(
+      (details) {
+        for (final detail in details) {
+          _contractSizes[detail.symbol] = detail.contractSize.toDouble();
+        }
+      },
+      (_) {},
+    );
+  }
+
+  double _contractSize(String symbol) => _contractSizes[symbol] ?? 1;
+
   void _onPositionEvent(PositionDto dto) {
-    final model = dto.toModel();
+    final model = dto.toModel(_contractSize(dto.symbol));
     final key = _key(model);
-    if (model.size == 0) {
+    if (dto.state == 3 || model.size == 0) {
       _positionsByKey.remove(key);
     } else {
-      // Keep the locally tracked mark price: ticker ticks are fresher than the
-      // position event's snapshot.
+      // Keep the locally tracked mark price: ticker ticks are fresher.
       final current = _positionsByKey[key];
       final markPrice = current != null && current.markPrice > 0
           ? current.markPrice
@@ -143,9 +161,8 @@ class GateAccountRepository implements ExchangeAccountRepository {
       if (_tickerSubs.containsKey(symbol)) continue;
       _tickerSubs[symbol] = tickerSubscriptions.subscribe(symbol).listen(
         (dto) {
-          final markPriceRaw = dto.markPrice;
-          if (markPriceRaw == null || markPriceRaw.isEmpty) return;
-          _applyMarkPrice(dto.contract, double.parse(markPriceRaw));
+          final mark = dto.fairPrice;
+          if (mark != null) _applyMarkPrice(dto.symbol, mark.toDouble());
         },
       );
     }
@@ -184,8 +201,15 @@ class GateAccountRepository implements ExchangeAccountRepository {
   static String _key(PositionModel position) =>
       '${position.symbol}#${position.side}';
 
+  static bool _inRange(DateTime time, DateTime? start, DateTime? end) {
+    if (start != null && time.isBefore(start)) return false;
+    if (end != null && !time.isBefore(end)) return false;
+    return true;
+  }
+
   @override
   void dispose() {
+    _accountSub?.cancel();
     _positionSub?.cancel();
     for (final sub in _tickerSubs.values) {
       sub.cancel();

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
+import 'package:crypto_position/src/mexc_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app_model.dart';
@@ -16,6 +17,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
   final OkxSessionService _okxSessionService;
   final BitgetSessionService _bitgetSessionService;
   final GateSessionService _gateSessionService;
+  final MexcSessionService _mexcSessionService;
 
   CryptoAppWm(
     super.model, {
@@ -23,10 +25,12 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     required OkxSessionService okxSessionService,
     required BitgetSessionService bitgetSessionService,
     required GateSessionService gateSessionService,
+    required MexcSessionService mexcSessionService,
   })  : _bybitSessionService = bybitSessionService,
         _okxSessionService = okxSessionService,
         _bitgetSessionService = bitgetSessionService,
-        _gateSessionService = gateSessionService;
+        _gateSessionService = gateSessionService,
+        _mexcSessionService = mexcSessionService;
 
   @override
   void initWidgetModel() {
@@ -35,6 +39,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     unawaited(_okxSessionService.init());
     unawaited(_bitgetSessionService.init());
     unawaited(_gateSessionService.init());
+    unawaited(_mexcSessionService.init());
   }
 }
 
@@ -45,5 +50,6 @@ CryptoAppWm cryptoAppWmFactory({required BuildContext context}) {
     okxSessionService: context.read<OkxSessionService>(),
     bitgetSessionService: context.read<BitgetSessionService>(),
     gateSessionService: context.read<GateSessionService>(),
+    mexcSessionService: context.read<MexcSessionService>(),
   );
 }

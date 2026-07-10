@@ -21,12 +21,18 @@ class GateAccountDto {
   @JsonKey(defaultValue: '0')
   final String unrealisedPnl;
 
-  // Classic cross-margin / unified accounts report equity under these `cross_*`
-  // fields and can leave the isolated [total]/[available] at "0".
+  // Classic cross-margin accounts (`margin_mode_name: single_currency`) report
+  // the balance under these `cross_*` fields and leave the isolated
+  // [total]/[available] at "0". `cross_margin_balance` is not always returned,
+  // so equity is rebuilt from the parts: available + locked margin + uPnL.
   @JsonKey(defaultValue: '0')
   final String crossMarginBalance;
   @JsonKey(defaultValue: '0')
   final String crossAvailable;
+  @JsonKey(defaultValue: '0')
+  final String crossInitialMargin;
+  @JsonKey(defaultValue: '0')
+  final String crossOrderMargin;
   @JsonKey(defaultValue: '0')
   final String crossUnrealisedPnl;
 
@@ -38,6 +44,8 @@ class GateAccountDto {
     required this.unrealisedPnl,
     required this.crossMarginBalance,
     required this.crossAvailable,
+    required this.crossInitialMargin,
+    required this.crossOrderMargin,
     required this.crossUnrealisedPnl,
   });
 

@@ -1,6 +1,7 @@
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
+import 'package:crypto_position/src/mexc_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/settings/settings_screen.dart';
 import 'package:crypto_position/src/presentation/settings/settings_screen_model.dart';
@@ -23,11 +24,14 @@ class SettingsScreenWm
   final bitgetPassphraseController = TextEditingController();
   final gateApiKeyController = TextEditingController();
   final gateApiSecretController = TextEditingController();
+  final mexcApiKeyController = TextEditingController();
+  final mexcApiSecretController = TextEditingController();
 
   final BybitSessionService _sessionService;
   final OkxSessionService _okxSessionService;
   final BitgetSessionService _bitgetSessionService;
   final GateSessionService _gateSessionService;
+  final MexcSessionService _mexcSessionService;
 
   SettingsScreenWm(
     super.model, {
@@ -35,10 +39,12 @@ class SettingsScreenWm
     required OkxSessionService okxSessionService,
     required BitgetSessionService bitgetSessionService,
     required GateSessionService gateSessionService,
+    required MexcSessionService mexcSessionService,
   })  : _sessionService = sessionService,
         _okxSessionService = okxSessionService,
         _bitgetSessionService = bitgetSessionService,
-        _gateSessionService = gateSessionService;
+        _gateSessionService = gateSessionService,
+        _mexcSessionService = mexcSessionService;
 
   /// Connection cards, one per exchange. Reads the current state of both
   /// session services; [connectionsListenable] triggers rebuilds when any of
@@ -86,6 +92,16 @@ class SettingsScreenWm
       onSaveCredentials: saveGateCredentials,
       onLogout: gateLogout,
     ),
+    ExchangeConnection(
+      title: 'Подключение к MEXC',
+      hasCredentials: _mexcSessionService.hasCredentials.value,
+      loading: _mexcSessionService.loading.value,
+      error: _mexcSessionService.error.value,
+      apiKeyController: mexcApiKeyController,
+      apiSecretController: mexcApiSecretController,
+      onSaveCredentials: saveMexcCredentials,
+      onLogout: mexcLogout,
+    ),
   ];
 
   Listenable get connectionsListenable => Listenable.merge([
@@ -101,6 +117,9 @@ class SettingsScreenWm
     _gateSessionService.hasCredentials,
     _gateSessionService.loading,
     _gateSessionService.error,
+    _mexcSessionService.hasCredentials,
+    _mexcSessionService.loading,
+    _mexcSessionService.error,
   ]);
 
   @override
@@ -115,6 +134,8 @@ class SettingsScreenWm
     bitgetPassphraseController.dispose();
     gateApiKeyController.dispose();
     gateApiSecretController.dispose();
+    mexcApiKeyController.dispose();
+    mexcApiSecretController.dispose();
     super.dispose();
   }
 
@@ -167,6 +188,18 @@ class SettingsScreenWm
   Future<void> gateLogout() async {
     await _gateSessionService.logout();
   }
+
+  Future<void> saveMexcCredentials() async {
+    final key = mexcApiKeyController.text.trim();
+    final secret = mexcApiSecretController.text.trim();
+    if (key.isEmpty || secret.isEmpty) return;
+
+    await _mexcSessionService.saveCredentials(key, secret);
+  }
+
+  Future<void> mexcLogout() async {
+    await _mexcSessionService.logout();
+  }
 }
 
 SettingsScreenWm settingsScreenWmFactory({required BuildContext context}) {
@@ -176,5 +209,6 @@ SettingsScreenWm settingsScreenWmFactory({required BuildContext context}) {
     okxSessionService: context.read<OkxSessionService>(),
     bitgetSessionService: context.read<BitgetSessionService>(),
     gateSessionService: context.read<GateSessionService>(),
+    mexcSessionService: context.read<MexcSessionService>(),
   );
 }
