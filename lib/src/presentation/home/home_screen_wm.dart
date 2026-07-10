@@ -1,5 +1,6 @@
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/home/exchange_account.dart';
 import 'package:crypto_position/src/presentation/home/home_screen.dart';
@@ -16,6 +17,7 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   final BybitSessionService _bybit;
   final OkxSessionService _okx;
   final BitgetSessionService _bitget;
+  final GateSessionService _gate;
 
   final _accounts = ValueNotifier<List<ExchangeAccount>>([]);
   final _hasAnyCredentials = ValueNotifier<bool>(false);
@@ -30,15 +32,18 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   ExchangeAccountRepository? _boundBybitRepo;
   ExchangeAccountRepository? _boundOkxRepo;
   ExchangeAccountRepository? _boundBitgetRepo;
+  ExchangeAccountRepository? _boundGateRepo;
 
   HomeScreenWm(
     super.model, {
     required BybitSessionService bybit,
     required OkxSessionService okx,
     required BitgetSessionService bitget,
+    required GateSessionService gate,
   })  : _bybit = bybit,
         _okx = okx,
-        _bitget = bitget;
+        _bitget = bitget,
+        _gate = gate;
 
   @override
   void initWidgetModel() {
@@ -46,12 +51,15 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     _bybit.session.addListener(_onSessionsChanged);
     _okx.session.addListener(_onSessionsChanged);
     _bitget.session.addListener(_onSessionsChanged);
+    _gate.session.addListener(_onSessionsChanged);
     _bybit.hasCredentials.addListener(_syncStatus);
     _okx.hasCredentials.addListener(_syncStatus);
     _bitget.hasCredentials.addListener(_syncStatus);
+    _gate.hasCredentials.addListener(_syncStatus);
     _bybit.loading.addListener(_syncStatus);
     _okx.loading.addListener(_syncStatus);
     _bitget.loading.addListener(_syncStatus);
+    _gate.loading.addListener(_syncStatus);
     _onSessionsChanged();
     _syncStatus();
   }
@@ -61,15 +69,19 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     _bybit.session.removeListener(_onSessionsChanged);
     _okx.session.removeListener(_onSessionsChanged);
     _bitget.session.removeListener(_onSessionsChanged);
+    _gate.session.removeListener(_onSessionsChanged);
     _bybit.hasCredentials.removeListener(_syncStatus);
     _okx.hasCredentials.removeListener(_syncStatus);
     _bitget.hasCredentials.removeListener(_syncStatus);
+    _gate.hasCredentials.removeListener(_syncStatus);
     _bybit.loading.removeListener(_syncStatus);
     _okx.loading.removeListener(_syncStatus);
     _bitget.loading.removeListener(_syncStatus);
+    _gate.loading.removeListener(_syncStatus);
     _unbind(_boundBybitRepo);
     _unbind(_boundOkxRepo);
     _unbind(_boundBitgetRepo);
+    _unbind(_boundGateRepo);
     _accounts.dispose();
     _hasAnyCredentials.dispose();
     _loading.dispose();
@@ -81,6 +93,7 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     _boundOkxRepo = _rebind(_boundOkxRepo, _okx.session.value?.repository);
     _boundBitgetRepo =
         _rebind(_boundBitgetRepo, _bitget.session.value?.repository);
+    _boundGateRepo = _rebind(_boundGateRepo, _gate.session.value?.repository);
     _rebuild();
   }
 
@@ -106,6 +119,7 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     _addAccount(list, 'Bybit', _bybit.session.value?.repository);
     _addAccount(list, 'OKX', _okx.session.value?.repository);
     _addAccount(list, 'Bitget', _bitget.session.value?.repository);
+    _addAccount(list, 'Gate', _gate.session.value?.repository);
     _accounts.value = list;
   }
 
@@ -128,10 +142,12 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   void _syncStatus() {
     _hasAnyCredentials.value = _bybit.hasCredentials.value ||
         _okx.hasCredentials.value ||
-        _bitget.hasCredentials.value;
+        _bitget.hasCredentials.value ||
+        _gate.hasCredentials.value;
     _loading.value = _bybit.loading.value ||
         _okx.loading.value ||
-        _bitget.loading.value;
+        _bitget.loading.value ||
+        _gate.loading.value;
   }
 }
 
@@ -141,5 +157,6 @@ HomeScreenWm homeScreenWmFactory({required BuildContext context}) {
     bybit: context.read<BybitSessionService>(),
     okx: context.read<OkxSessionService>(),
     bitget: context.read<BitgetSessionService>(),
+    gate: context.read<GateSessionService>(),
   );
 }

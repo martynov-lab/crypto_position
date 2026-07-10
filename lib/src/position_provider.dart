@@ -4,8 +4,11 @@ import 'package:crypto_position/src/bitget_account_repository_factory.dart';
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_account_repository_factory.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/gate_account_repository_factory.dart';
+import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/okx_account_repository_factory.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
+import 'package:gate/gate.dart';
 import 'package:network/network.dart';
 import 'package:okx/okx.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
@@ -47,6 +50,11 @@ class PositionProvider extends StatelessWidget {
         create: (context) =>
             BitgetAccountRepositoryFactory(context.read<BitgetConfig>()),
       ),
+      Provider<GateConfig>.value(value: const GateConfig()),
+      Provider<GateAccountRepositoryFactory>(
+        create: (context) =>
+            GateAccountRepositoryFactory(context.read<GateConfig>()),
+      ),
       Provider<ReconnectionService>(
         create: (_) => ReconnectionService(
           lifecycleService: AppLifecycleService(),
@@ -74,6 +82,14 @@ class PositionProvider extends StatelessWidget {
         create: (context) => BitgetSessionService(
           storage: context.read<FlutterSecureStorage>(),
           accountFactory: context.read<BitgetAccountRepositoryFactory>(),
+          reconnectionService: context.read<ReconnectionService>(),
+        ),
+        dispose: (_, value) => value.dispose(),
+      ),
+      Provider<GateSessionService>(
+        create: (context) => GateSessionService(
+          storage: context.read<FlutterSecureStorage>(),
+          accountFactory: context.read<GateAccountRepositoryFactory>(),
           reconnectionService: context.read<ReconnectionService>(),
         ),
         dispose: (_, value) => value.dispose(),

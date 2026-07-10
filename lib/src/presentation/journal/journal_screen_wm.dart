@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/journal/exchange_journal.dart';
 import 'package:crypto_position/src/presentation/journal/journal_screen.dart';
@@ -17,23 +18,28 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
   final BybitSessionService _bybit;
   final OkxSessionService _okx;
   final BitgetSessionService _bitget;
+  final GateSessionService _gate;
 
   late final ExchangeJournal bybitJournal = ExchangeJournal(_fetchBybit);
   late final ExchangeJournal okxJournal = ExchangeJournal(_fetchOkx);
   late final ExchangeJournal bitgetJournal = ExchangeJournal(_fetchBitget);
+  late final ExchangeJournal gateJournal = ExchangeJournal(_fetchGate);
 
   ValueListenable<bool> get bybitHasCredentials => _bybit.hasCredentials;
   ValueListenable<bool> get okxHasCredentials => _okx.hasCredentials;
   ValueListenable<bool> get bitgetHasCredentials => _bitget.hasCredentials;
+  ValueListenable<bool> get gateHasCredentials => _gate.hasCredentials;
 
   JournalScreenWm(
     super.model, {
     required BybitSessionService bybit,
     required OkxSessionService okx,
     required BitgetSessionService bitget,
+    required GateSessionService gate,
   })  : _bybit = bybit,
         _okx = okx,
-        _bitget = bitget;
+        _bitget = bitget,
+        _gate = gate;
 
   @override
   void initWidgetModel() {
@@ -41,9 +47,11 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
     _bybit.session.addListener(_onBybitSessionChanged);
     _okx.session.addListener(_onOkxSessionChanged);
     _bitget.session.addListener(_onBitgetSessionChanged);
+    _gate.session.addListener(_onGateSessionChanged);
     if (_bybit.session.value != null) bybitJournal.load();
     if (_okx.session.value != null) okxJournal.load();
     if (_bitget.session.value != null) bitgetJournal.load();
+    if (_gate.session.value != null) gateJournal.load();
   }
 
   @override
@@ -51,9 +59,11 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
     _bybit.session.removeListener(_onBybitSessionChanged);
     _okx.session.removeListener(_onOkxSessionChanged);
     _bitget.session.removeListener(_onBitgetSessionChanged);
+    _gate.session.removeListener(_onGateSessionChanged);
     bybitJournal.dispose();
     okxJournal.dispose();
     bitgetJournal.dispose();
+    gateJournal.dispose();
     super.dispose();
   }
 
@@ -69,6 +79,10 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
     _bitget.session.value != null
         ? bitgetJournal.load()
         : bitgetJournal.clear();
+  }
+
+  void _onGateSessionChanged() {
+    _gate.session.value != null ? gateJournal.load() : gateJournal.clear();
   }
 
   Future<Result<List<ClosedTradeModel>, Object>> _fetchBybit(
@@ -120,6 +134,19 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
       endDate: endDate,
     );
   }
+
+  Future<Result<List<ClosedTradeModel>, Object>> _fetchGate(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final session = _gate.session.value;
+    if (session == null) return const Ok([]);
+
+    return session.repository.fetchClosedTrades(
+      startDate: startDate,
+      endDate: endDate,
+    );
+  }
 }
 
 JournalScreenWm journalScreenWmFactory({required BuildContext context}) {
@@ -128,5 +155,6 @@ JournalScreenWm journalScreenWmFactory({required BuildContext context}) {
     bybit: context.read<BybitSessionService>(),
     okx: context.read<OkxSessionService>(),
     bitget: context.read<BitgetSessionService>(),
+    gate: context.read<GateSessionService>(),
   );
 }

@@ -20,6 +20,8 @@ dependencies:
     path: packages/okx
   bitget:
     path: packages/bitget
+  gate:
+    path: packages/gate
   exchange:
     path: packages/exchange
   dio: ^5.8.0+1

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app_model.dart';
@@ -14,15 +15,18 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
   final BybitSessionService _bybitSessionService;
   final OkxSessionService _okxSessionService;
   final BitgetSessionService _bitgetSessionService;
+  final GateSessionService _gateSessionService;
 
   CryptoAppWm(
     super.model, {
     required BybitSessionService bybitSessionService,
     required OkxSessionService okxSessionService,
     required BitgetSessionService bitgetSessionService,
+    required GateSessionService gateSessionService,
   })  : _bybitSessionService = bybitSessionService,
         _okxSessionService = okxSessionService,
-        _bitgetSessionService = bitgetSessionService;
+        _bitgetSessionService = bitgetSessionService,
+        _gateSessionService = gateSessionService;
 
   @override
   void initWidgetModel() {
@@ -30,6 +34,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     unawaited(_bybitSessionService.init());
     unawaited(_okxSessionService.init());
     unawaited(_bitgetSessionService.init());
+    unawaited(_gateSessionService.init());
   }
 }
 
@@ -39,5 +44,6 @@ CryptoAppWm cryptoAppWmFactory({required BuildContext context}) {
     bybitSessionService: context.read<BybitSessionService>(),
     okxSessionService: context.read<OkxSessionService>(),
     bitgetSessionService: context.read<BitgetSessionService>(),
+    gateSessionService: context.read<GateSessionService>(),
   );
 }
