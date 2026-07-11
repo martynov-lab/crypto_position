@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../models/instrument_coverage.dart';
 import '../models/signal_event.dart';
+import '../models/spread_point.dart';
 
 /// A decoded message pushed by the screener server, tagged by its `type` field.
 sealed class ScreenerServerMessage {
@@ -29,6 +30,28 @@ sealed class ScreenerServerMessage {
         );
       case 'event':
         return ScreenerEvent(SignalEvent.fromJson(json));
+      case 'watch_snapshot':
+        final rows = (json['points'] as List?) ?? const [];
+        return ScreenerWatchSnapshot(
+          instrument: Instrument.fromJson(
+            (json['instrument'] as Map).cast<String, Object?>(),
+          ),
+          resolutionMs: (json['resolution_ms'] as num?)?.toInt() ?? 0,
+          windowMs: (json['window_ms'] as num?)?.toInt() ?? 0,
+          points: rows
+              .whereType<Map>()
+              .map((e) => SpreadPoint.fromJson(e.cast<String, Object?>()))
+              .toList(),
+        );
+      case 'spread_tick':
+        return ScreenerSpreadTick(
+          instrument: Instrument.fromJson(
+            (json['instrument'] as Map).cast<String, Object?>(),
+          ),
+          point: SpreadPoint.fromJson(
+            (json['point'] as Map).cast<String, Object?>(),
+          ),
+        );
       case 'pong':
         return const ScreenerPong();
       case 'error':
@@ -55,6 +78,29 @@ class ScreenerUniverse extends ScreenerServerMessage {
 class ScreenerEvent extends ScreenerServerMessage {
   final SignalEvent event;
   const ScreenerEvent(this.event);
+}
+
+/// One-shot backfill for a `watch`, filling the chart window instantly.
+class ScreenerWatchSnapshot extends ScreenerServerMessage {
+  final Instrument instrument;
+  final int resolutionMs;
+  final int windowMs;
+  final List<SpreadPoint> points;
+
+  const ScreenerWatchSnapshot({
+    required this.instrument,
+    required this.resolutionMs,
+    required this.windowMs,
+    required this.points,
+  });
+}
+
+/// A live sample for a watched instrument.
+class ScreenerSpreadTick extends ScreenerServerMessage {
+  final Instrument instrument;
+  final SpreadPoint point;
+
+  const ScreenerSpreadTick({required this.instrument, required this.point});
 }
 
 /// Keepalive reply.

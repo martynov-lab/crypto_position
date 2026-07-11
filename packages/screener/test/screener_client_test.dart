@@ -100,6 +100,81 @@ void main() {
     channel.emit({'type': 'error', 'message': 'unauthorized'});
     expect(await errorFuture, 'unauthorized');
   });
+
+  test('watch sends a watch message when connected', () async {
+    client.start();
+    channel.emit({'type': 'subscribed', 'config': {}});
+    await flush();
+    channel.sent.clear();
+
+    final ok = client.watch(
+      const Instrument(base: 'ARB', quote: 'USDT', kind: 'perp'),
+      windowMs: 600000,
+    );
+    expect(ok, isTrue);
+    expect(channel.sent.single['type'], 'watch');
+    expect(
+      (channel.sent.single['instrument'] as Map)['base'],
+      'ARB',
+    );
+    expect(channel.sent.single['window_ms'], 600000);
+  });
+
+  test('watch cap rejects a 4th distinct instrument', () {
+    client.start();
+    Instrument inst(String base) =>
+        Instrument(base: base, quote: 'USDT', kind: 'perp');
+    expect(client.watch(inst('A')), isTrue);
+    expect(client.watch(inst('B')), isTrue);
+    expect(client.watch(inst('C')), isTrue);
+    expect(client.watch(inst('D')), isFalse);
+    // Re-watching an already-watched instrument is allowed (refresh).
+    expect(client.watch(inst('A')), isTrue);
+  });
+
+  test('SpreadChartController buffers snapshot + ticks and trims to window',
+      () async {
+    client.start();
+    channel.emit({'type': 'subscribed', 'config': {}});
+    await flush();
+
+    const instrument = Instrument(base: 'ARB', quote: 'USDT', kind: 'perp');
+    final controller =
+        SpreadChartController(client, instrument: instrument, windowMs: 5000);
+    expect(controller.start(), isTrue);
+    expect(channel.sent.any((m) => m['type'] == 'watch'), isTrue);
+
+    void emitTick(int ts, String net) => channel.emit({
+          'type': 'spread_tick',
+          'instrument': {'base': 'ARB', 'quote': 'USDT', 'kind': 'perp'},
+          'point': {'ts_ms': ts, 'net_pct': net},
+        });
+
+    channel.emit({
+      'type': 'watch_snapshot',
+      'instrument': {'base': 'ARB', 'quote': 'USDT', 'kind': 'perp'},
+      'resolution_ms': 1000,
+      'window_ms': 5000,
+      'points': [
+        {'ts_ms': 1000, 'net_pct': '0.01'},
+        {'ts_ms': 2000, 'net_pct': '0.02'},
+      ],
+    });
+    await flush();
+    expect(controller.points.value.map((p) => p.tsMs), [1000, 2000]);
+
+    emitTick(3000, '0.03');
+    await flush();
+    expect(controller.points.value.length, 3);
+
+    // A far-future tick pushes the window forward and drops stale points.
+    emitTick(9000, '0.04');
+    await flush();
+    expect(controller.points.value.map((p) => p.tsMs), [9000]);
+
+    controller.dispose();
+    expect(channel.sent.any((m) => m['type'] == 'unwatch'), isTrue);
+  });
 }
 
 /// In-memory [WebSocketChannel]: captures client sends, lets tests emit frames.

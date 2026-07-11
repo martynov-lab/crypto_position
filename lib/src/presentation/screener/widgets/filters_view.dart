@@ -54,6 +54,8 @@ class _FiltersViewState extends State<FiltersView> {
           config.maxSpreadDurationMs, ScreenerDefaults.maxSpreadDurationMs),
       'minSamples':
           _seed(config.minDynamicsSamples, ScreenerDefaults.minDynamicsSamples),
+      'maxChartSpread':
+          _seed(config.maxChartSpreadPct, ScreenerDefaults.maxChartSpreadPct),
       'hysteresis':
           _seed(config.hysteresisStepPct, ScreenerDefaults.hysteresisStepPct),
       'minLifetime':
@@ -131,6 +133,7 @@ class _FiltersViewState extends State<FiltersView> {
       minSpikeZ: str('minSpikeZ'),
       maxSpreadDurationMs: intVal('maxSpreadDuration'),
       minDynamicsSamples: intVal('minSamples'),
+      maxChartSpreadPct: str('maxChartSpread'),
       hysteresisStepPct: str('hysteresis'),
       minSignalLifetimeMs: intVal('minLifetime'),
       cooldownMs: intVal('cooldown'),
@@ -203,6 +206,7 @@ class _FiltersViewState extends State<FiltersView> {
         _field('minSpikeZ', 'Мин. z-скор всплеска'),
         _field('maxSpreadDuration', 'Макс. длительность спреда (мс)', number: true),
         _field('minSamples', 'Прогрев (сэмплов)', number: true),
+        _field('maxChartSpread', 'Макс. спред на графике (фильтр аномалий)'),
         _section('Частота сигналов'),
         _field('hysteresis', 'Шаг гистерезиса'),
         _field('minLifetime', 'Мин. время жизни сигнала (мс)', number: true),

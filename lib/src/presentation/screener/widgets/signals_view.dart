@@ -9,11 +9,15 @@ class SignalsView extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
   final Future<void> Function() onRefresh;
 
+  /// Tapping a coin opens its live spread chart.
+  final void Function(BuildContext context, Instrument instrument) onTap;
+
   const SignalsView({
     super.key,
     required this.signals,
     required this.summary,
     required this.onRefresh,
+    required this.onTap,
   });
 
   @override
@@ -21,13 +25,16 @@ class SignalsView extends StatelessWidget {
     return ValueListenableBuilder<List<SignalEvent>>(
       valueListenable: signals,
       builder: (context, events, _) {
-        if (events.isEmpty) return _SummaryFallback(summary: summary);
+        if (events.isEmpty) {
+          return _SummaryFallback(summary: summary, onTap: onTap);
+        }
         return RefreshIndicator(
           onRefresh: onRefresh,
           child: ListView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: events.length,
-            itemBuilder: (context, index) => _SignalCard(event: events[index]),
+            itemBuilder: (context, index) =>
+                _SignalCard(event: events[index], onTap: onTap),
           ),
         );
       },
@@ -37,8 +44,9 @@ class SignalsView extends StatelessWidget {
 
 class _SummaryFallback extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
+  final void Function(BuildContext context, Instrument instrument) onTap;
 
-  const _SummaryFallback({required this.summary});
+  const _SummaryFallback({required this.summary, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +75,10 @@ class _SummaryFallback extends StatelessWidget {
                     '  ·  ${row.coverage} площадок',
                   ),
                   trailing: _PercentLabel(fraction: row.netPct),
+                  onTap: () {
+                    final instrument = _instrumentFromPair(row.instrument);
+                    if (instrument != null) onTap(context, instrument);
+                  },
                 ),
               ),
           ],
@@ -76,19 +88,30 @@ class _SummaryFallback extends StatelessWidget {
   }
 }
 
+/// Parses a `BASE/QUOTE` summary string into an [Instrument] (perp).
+Instrument? _instrumentFromPair(String pair) {
+  final parts = pair.split('/');
+  if (parts.length != 2) return null;
+  return Instrument(base: parts[0], quote: parts[1], kind: 'perp');
+}
+
 class _SignalCard extends StatelessWidget {
   final SignalEvent event;
+  final void Function(BuildContext context, Instrument instrument) onTap;
 
-  const _SignalCard({required this.event});
+  const _SignalCard({required this.event, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final spread = event.spread;
     final theme = Theme.of(context);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+      child: InkWell(
+        onTap: () => onTap(context, spread.instrument),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -131,11 +154,12 @@ class _SignalCard extends StatelessWidget {
                   ),
               ],
             ),
-            if (event.dynamics != null) ...[
-              const SizedBox(height: 8),
-              _DynamicsRow(event.dynamics!),
+              if (event.dynamics != null) ...[
+                const SizedBox(height: 8),
+                _DynamicsRow(event.dynamics!),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

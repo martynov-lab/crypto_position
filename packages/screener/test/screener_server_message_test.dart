@@ -93,6 +93,38 @@ void main() {
         isA<ScreenerUnknown>(),
       );
     });
+
+    test('decodes watch_snapshot with points', () {
+      const raw = '''
+      { "type": "watch_snapshot",
+        "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
+        "resolution_ms": 1000, "window_ms": 900000,
+        "points": [
+          { "ts_ms": 1752230400000, "net_pct": "0.0031", "baseline_pct": "0.0030",
+            "buy_exchange": "mexc", "sell_exchange": "kucoin",
+            "executable_notional": "2000", "capped_by_depth": false } ] }''';
+      final message = ScreenerServerMessage.decode(raw);
+      expect(message, isA<ScreenerWatchSnapshot>());
+      final snapshot = message as ScreenerWatchSnapshot;
+      expect(snapshot.instrument.pair, 'ARB/USDT');
+      expect(snapshot.resolutionMs, 1000);
+      expect(snapshot.points.single.netPct, '0.0031');
+      expect(snapshot.points.single.baselinePct, '0.0030');
+    });
+
+    test('decodes spread_tick', () {
+      const raw = '''
+      { "type": "spread_tick",
+        "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
+        "point": { "ts_ms": 1752230402000, "net_pct": "0.0289",
+                   "capped_by_depth": true } }''';
+      final message = ScreenerServerMessage.decode(raw);
+      expect(message, isA<ScreenerSpreadTick>());
+      final tick = message as ScreenerSpreadTick;
+      expect(tick.point.netPct, '0.0289');
+      expect(tick.point.cappedByDepth, isTrue);
+      expect(tick.point.baselinePct, isNull);
+    });
   });
 
   group('ClientConfig.toJson', () {

@@ -20,6 +20,7 @@ class ScreenerDefaults {
   static const minSpikeZ = '3';
   static const maxSpreadDurationMs = 300000;
   static const minDynamicsSamples = 20;
+  static const maxChartSpreadPct = '0.50';
   static const hysteresisStepPct = '0.005';
   static const minSignalLifetimeMs = 1500;
   static const cooldownMs = 2000;
@@ -67,6 +68,7 @@ class ClientConfig {
   final String? minSpikeZ;
   final int? maxSpreadDurationMs;
   final int? minDynamicsSamples;
+  final String? maxChartSpreadPct;
   final String? hysteresisStepPct;
   final int? minSignalLifetimeMs;
   final int? cooldownMs;
@@ -95,6 +97,7 @@ class ClientConfig {
     this.minSpikeZ,
     this.maxSpreadDurationMs,
     this.minDynamicsSamples,
+    this.maxChartSpreadPct,
     this.hysteresisStepPct,
     this.minSignalLifetimeMs,
     this.cooldownMs,
@@ -131,6 +134,7 @@ class ClientConfig {
     put('min_spike_z', minSpikeZ);
     put('max_spread_duration_ms', maxSpreadDurationMs);
     put('min_dynamics_samples', minDynamicsSamples);
+    put('max_chart_spread_pct', maxChartSpreadPct);
     put('hysteresis_step_pct', hysteresisStepPct);
     put('min_signal_lifetime_ms', minSignalLifetimeMs);
     put('cooldown_ms', cooldownMs);

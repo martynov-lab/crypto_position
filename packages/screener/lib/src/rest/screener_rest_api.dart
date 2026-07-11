@@ -3,6 +3,7 @@ import 'package:network/network.dart';
 
 import '../models/client_config.dart';
 import '../models/instrument_coverage.dart';
+import '../models/spread_point.dart';
 import '../models/summary_entry.dart';
 
 /// Result of `POST /config/validate`.
@@ -57,6 +58,30 @@ class ScreenerRestApi {
         error: json['error']?.toString(),
       ),
     );
+  }
+
+  /// `GET /spread/history` — cold-render fallback for the chart (same point
+  /// shape as the `watch` stream) without holding a socket open.
+  Future<Result<List<SpreadPoint>, Object>> fetchSpreadHistory({
+    required String base,
+    required String quote,
+    int windowMs = 900000,
+  }) async {
+    final result = await _client.get<Map<String, Object?>>(
+      '/spread/history',
+      queryParams: {
+        'base': base,
+        'quote': quote,
+        'window_ms': windowMs,
+      },
+    );
+    return result.map((json) {
+      final rows = (json['points'] as List?) ?? const [];
+      return rows
+          .whereType<Map>()
+          .map((e) => SpreadPoint.fromJson(e.cast<String, Object?>()))
+          .toList();
+    });
   }
 
   /// `GET /healthz` — liveness + instrument count.

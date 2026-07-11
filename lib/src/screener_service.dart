@@ -57,6 +57,18 @@ class ScreenerService {
 
   ClientConfig get clientConfig => _client.clientConfig;
 
+  /// Opens a live spread-chart watch for [instrument]. The caller owns the
+  /// returned controller and MUST call `dispose()` (sends `unwatch`).
+  SpreadChartController watchInstrument(
+    Instrument instrument, {
+    int windowMs = 900000,
+  }) =>
+      SpreadChartController(
+        _client,
+        instrument: instrument,
+        windowMs: windowMs,
+      );
+
   void init() {
     _eventSub = _client.events.listen(_onEvent);
     _errorSub = _client.errors.listen((message) => _error.value = message);

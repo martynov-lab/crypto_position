@@ -30,6 +30,9 @@ class ScreenerClient {
 
   ClientConfig _clientConfig;
 
+  /// Max concurrent chart watches per session (server-enforced too).
+  static const maxWatches = 3;
+
   WebSocketChannel? _channel;
   StreamSubscription<Object?>? _subscription;
   Timer? _pingTimer;
@@ -39,6 +42,11 @@ class ScreenerClient {
   bool _stopped = true;
   bool _handlingLoss = false;
   bool _disposed = false;
+  bool _freshSocket = false;
+
+  /// Active chart watches keyed by instrument pair, so they can be re-sent on a
+  /// fresh socket (they survive `subscribe`/reconfigure but not a reconnect).
+  final _activeWatches = <String, ({Instrument instrument, int windowMs})>{};
 
   final _state = ValueNotifier<WsConnectionState>(
     WsConnectionState.disconnected,
@@ -47,6 +55,7 @@ class ScreenerClient {
   final _effectiveConfig = ValueNotifier<Map<String, Object?>?>(null);
   final _events = StreamController<SignalEvent>.broadcast();
   final _errors = StreamController<String>.broadcast();
+  final _watchUpdates = StreamController<ScreenerServerMessage>.broadcast();
 
   ScreenerClient({
     required ScreenerConfig config,
@@ -77,7 +86,38 @@ class ScreenerClient {
   /// Server-reported errors (invalid config, `unauthorized`, ...).
   Stream<String> get errors => _errors.stream;
 
+  /// Chart watch pushes: [ScreenerWatchSnapshot] then [ScreenerSpreadTick]s.
+  /// Consumers filter by instrument.
+  Stream<ScreenerServerMessage> get watchUpdates => _watchUpdates.stream;
+
   ClientConfig get clientConfig => _clientConfig;
+
+  /// Starts a live chart watch for [instrument]. Returns `false` (and sends
+  /// nothing) when the local [maxWatches] cap is already reached for a new
+  /// instrument. Re-watching an instrument already watched refreshes it.
+  bool watch(Instrument instrument, {int windowMs = 900000}) {
+    final key = instrument.pair;
+    if (!_activeWatches.containsKey(key) &&
+        _activeWatches.length >= maxWatches) {
+      return false;
+    }
+    _activeWatches[key] = (instrument: instrument, windowMs: windowMs);
+    if (_state.value == WsConnectionState.connected) {
+      _send({
+        'type': 'watch',
+        'instrument': _instrumentJson(instrument),
+        'window_ms': windowMs,
+      });
+    }
+    return true;
+  }
+
+  void unwatch(Instrument instrument) {
+    if (_activeWatches.remove(instrument.pair) == null) return;
+    if (_state.value == WsConnectionState.connected) {
+      _send({'type': 'unwatch', 'instrument': _instrumentJson(instrument)});
+    }
+  }
 
   void start() {
     if (!_stopped || _disposed) return;
@@ -119,6 +159,7 @@ class ScreenerClient {
     _effectiveConfig.dispose();
     unawaited(_events.close());
     unawaited(_errors.close());
+    unawaited(_watchUpdates.close());
   }
 
   void _setState(WsConnectionState value) {
@@ -128,6 +169,7 @@ class ScreenerClient {
 
   void _openChannel() {
     _handlingLoss = false;
+    _freshSocket = true;
     try {
       final channel = _connect(_config.wsUri);
       _channel = channel;
@@ -161,6 +203,9 @@ class ScreenerClient {
         _events.add(event);
       case ScreenerError(:final message):
         _errors.add(message);
+      case ScreenerWatchSnapshot():
+      case ScreenerSpreadTick():
+        _watchUpdates.add(message);
       case ScreenerPong():
       case ScreenerUnknown():
         break;
@@ -175,7 +220,25 @@ class ScreenerClient {
       _pingInterval,
       (_) => _send({'type': 'ping'}),
     );
+    // Watches survive reconfigure (same socket) but not a reconnect, so only
+    // re-send them on a fresh socket's first `subscribed` ack.
+    if (_freshSocket) {
+      _freshSocket = false;
+      for (final watch in _activeWatches.values) {
+        _send({
+          'type': 'watch',
+          'instrument': _instrumentJson(watch.instrument),
+          'window_ms': watch.windowMs,
+        });
+      }
+    }
   }
+
+  static Map<String, Object?> _instrumentJson(Instrument instrument) => {
+        'base': instrument.base,
+        'quote': instrument.quote,
+        'kind': instrument.kind,
+      };
 
   void _sendSubscribe() => _send({
         'type': 'subscribe',
