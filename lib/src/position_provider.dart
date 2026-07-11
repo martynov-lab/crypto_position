@@ -12,6 +12,7 @@ import 'package:crypto_position/src/okx_account_repository_factory.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:gate/gate.dart';
 import 'package:mexc/mexc.dart';
+import 'package:crypto_position/src/screener_service.dart';
 import 'package:network/network.dart';
 import 'package:okx/okx.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
@@ -106,6 +107,12 @@ class PositionProvider extends StatelessWidget {
         create: (context) => MexcSessionService(
           storage: context.read<FlutterSecureStorage>(),
           accountFactory: context.read<MexcAccountRepositoryFactory>(),
+          reconnectionService: context.read<ReconnectionService>(),
+        ),
+        dispose: (_, value) => value.dispose(),
+      ),
+      Provider<ScreenerService>(
+        create: (context) => ScreenerService(
           reconnectionService: context.read<ReconnectionService>(),
         ),
         dispose: (_, value) => value.dispose(),

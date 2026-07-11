@@ -25,6 +25,10 @@ class ScaffoldWithNavBar extends StatelessWidget {
             label: 'Journal',
           ),
           NavigationDestination(
+            icon: Icon(Icons.trending_up),
+            label: 'Screener',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.settings),
             label: 'Settings',
           ),

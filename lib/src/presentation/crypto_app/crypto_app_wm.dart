@@ -5,6 +5,7 @@ import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/mexc_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
+import 'package:crypto_position/src/screener_service.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app.dart';
 import 'package:crypto_position/src/presentation/crypto_app/crypto_app_model.dart';
 import 'package:elementary/elementary.dart';
@@ -18,6 +19,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
   final BitgetSessionService _bitgetSessionService;
   final GateSessionService _gateSessionService;
   final MexcSessionService _mexcSessionService;
+  final ScreenerService _screenerService;
 
   CryptoAppWm(
     super.model, {
@@ -26,11 +28,13 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     required BitgetSessionService bitgetSessionService,
     required GateSessionService gateSessionService,
     required MexcSessionService mexcSessionService,
+    required ScreenerService screenerService,
   })  : _bybitSessionService = bybitSessionService,
         _okxSessionService = okxSessionService,
         _bitgetSessionService = bitgetSessionService,
         _gateSessionService = gateSessionService,
-        _mexcSessionService = mexcSessionService;
+        _mexcSessionService = mexcSessionService,
+        _screenerService = screenerService;
 
   @override
   void initWidgetModel() {
@@ -40,6 +44,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     unawaited(_bitgetSessionService.init());
     unawaited(_gateSessionService.init());
     unawaited(_mexcSessionService.init());
+    _screenerService.init();
   }
 }
 
@@ -51,5 +56,6 @@ CryptoAppWm cryptoAppWmFactory({required BuildContext context}) {
     bitgetSessionService: context.read<BitgetSessionService>(),
     gateSessionService: context.read<GateSessionService>(),
     mexcSessionService: context.read<MexcSessionService>(),
+    screenerService: context.read<ScreenerService>(),
   );
 }
