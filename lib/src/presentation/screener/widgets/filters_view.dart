@@ -24,9 +24,19 @@ class FiltersView extends StatefulWidget {
   State<FiltersView> createState() => _FiltersViewState();
 }
 
+/// Selectable market-kind combos for `market_pairs`. Only perp/perp is live
+/// server-side today; the spot legs are accepted ahead of the spot ingest.
+const _marketPairChoices = <(MarketPair, String)>[
+  (MarketPair.perpPerp, 'фьюч/фьюч'),
+  (MarketPair(buy: 'spot', sell: 'spot'), 'спот/спот'),
+  (MarketPair(buy: 'spot', sell: 'perp'), 'спот/фьюч'),
+  (MarketPair(buy: 'perp', sell: 'spot'), 'фьюч/спот'),
+];
+
 class _FiltersViewState extends State<FiltersView> {
   late final Map<String, TextEditingController> _text;
   late final Set<String> _exchanges;
+  late final Set<MarketPair> _marketPairs;
   late bool _includeFunding;
   late bool _enableDynamics;
   late bool _requireTransferable;
@@ -68,10 +78,15 @@ class _FiltersViewState extends State<FiltersView> {
           _seed(config.maxSignalsPerMin, ScreenerDefaults.maxSignalsPerMin),
       'allow': TextEditingController(text: config.allowSymbols?.join(', ') ?? ''),
       'deny': TextEditingController(text: config.denySymbols?.join(', ') ?? ''),
-      'minVolume': TextEditingController(text: config.min24hQuoteVolume ?? ''),
+      'minVolume':
+          _seed(config.min24hQuoteVolume, ScreenerDefaults.min24hQuoteVolume),
+      // `maxVolumeOff` ('') round-trips as an empty field = ceiling off.
+      'maxVolume':
+          _seed(config.max24hQuoteVolume, ScreenerDefaults.max24hQuoteVolume),
       'minOi': TextEditingController(text: config.minOpenInterest ?? ''),
     };
     _exchanges = {...(config.exchanges ?? ScreenerDefaults.allExchanges)};
+    _marketPairs = {...(config.marketPairs ?? ScreenerDefaults.marketPairs)};
     _includeFunding =
         config.includeFundingDiff ?? ScreenerDefaults.includeFundingDiff;
     _enableDynamics = config.enableDynamics ?? ScreenerDefaults.enableDynamics;
@@ -118,7 +133,13 @@ class _FiltersViewState extends State<FiltersView> {
       quote: str('quote'),
       allowSymbols: csv('allow'),
       denySymbols: csv('deny'),
+      marketPairs: setEquals(_marketPairs, {...ScreenerDefaults.marketPairs})
+          ? null
+          : _marketPairs.toList(),
       min24hQuoteVolume: str('minVolume'),
+      // Cleared field → explicit null on the wire → ceiling off.
+      max24hQuoteVolume:
+          str('maxVolume') ?? ClientConfig.maxVolumeOff,
       minOpenInterest: str('minOi'),
       minNetSpreadPct: str('minNet'),
       maxNetSpreadPct: str('maxNet'),
@@ -183,6 +204,27 @@ class _FiltersViewState extends State<FiltersView> {
               ),
           ],
         ),
+        _section('Рынки ног (покупка/продажа)'),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final (pair, label) in _marketPairChoices)
+              FilterChip(
+                label: Text(label),
+                // Only perp/perp is ingested today; spot combos are accepted
+                // by the server but produce no signals until spot ingest lands.
+                selected: _marketPairs.contains(pair),
+                onSelected: (selected) => setState(() {
+                  if (selected) {
+                    _marketPairs.add(pair);
+                  } else if (_marketPairs.length > 1) {
+                    // An empty market_pairs fails server validation.
+                    _marketPairs.remove(pair);
+                  }
+                }),
+              ),
+          ],
+        ),
         _section('Спред (доли, 0.03 = 3%)'),
         _field('minNet', 'Мин. чистый спред'),
         _field('maxNet', 'Макс. чистый спред (ghost cap)'),
@@ -218,7 +260,8 @@ class _FiltersViewState extends State<FiltersView> {
         _section('Символы и требования'),
         _field('allow', 'Allow-лист (через запятую)'),
         _field('deny', 'Deny-лист (через запятую)'),
-        _field('minVolume', 'Мин. суточный объём'),
+        _field('minVolume', 'Объём 24ч: от (USDT)'),
+        _field('maxVolume', 'Объём 24ч: до (USDT, пусто — без потолка)'),
         _field('minOi', 'Мин. открытый интерес'),
         SwitchListTile(
           title: const Text('Требовать перевод актива'),

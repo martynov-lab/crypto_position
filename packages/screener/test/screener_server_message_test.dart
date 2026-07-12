@@ -169,6 +169,29 @@ void main() {
       // Round-trips as the subscribe payload's config object.
       expect(jsonDecode(jsonEncode(json)), json);
     });
+
+    test('serializes market_pairs and the volume band', () {
+      const config = ClientConfig(
+        marketPairs: [MarketPair.perpPerp, MarketPair(buy: 'spot', sell: 'perp')],
+        min24hQuoteVolume: '100000',
+        max24hQuoteVolume: '200000',
+      );
+      expect(config.toJson(), {
+        'market_pairs': [
+          {'buy': 'perp', 'sell': 'perp'},
+          {'buy': 'spot', 'sell': 'perp'},
+        ],
+        'min_24h_quote_volume': '100000',
+        'max_24h_quote_volume': '200000',
+      });
+    });
+
+    test('maxVolumeOff emits an explicit null, unset omits the key', () {
+      const off = ClientConfig(max24hQuoteVolume: ClientConfig.maxVolumeOff);
+      expect(off.toJson().containsKey('max_24h_quote_volume'), isTrue);
+      expect(off.toJson()['max_24h_quote_volume'], isNull);
+      expect(const ClientConfig().toJson(), isEmpty);
+    });
   });
 
   group('Decimals.percent', () {

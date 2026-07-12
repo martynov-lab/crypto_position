@@ -6,8 +6,11 @@ class ScreenerDefaults {
   const ScreenerDefaults._();
 
   static const quote = 'USDT';
-  static const minNetSpreadPct = '0.02';
-  static const maxNetSpreadPct = '0.20';
+  static const minNetSpreadPct = '0.006';
+  static const maxNetSpreadPct = '0.25';
+  static const min24hQuoteVolume = '100000';
+  static const max24hQuoteVolume = '200000';
+  static const marketPairs = [MarketPair.perpPerp];
   static const targetNotionalQ = '2000';
   static const minExecutableNotional = '500';
   static const depthLevelsN = 20;
@@ -40,6 +43,27 @@ class ScreenerDefaults {
   ];
 }
 
+/// One market-kind combination to screen: the market of the buy (long) leg vs
+/// the sell (short) leg. Only `perp`/`perp` is live server-side today; spot
+/// legs are accepted for forward compatibility.
+class MarketPair {
+  final String buy;
+  final String sell;
+
+  const MarketPair({required this.buy, required this.sell});
+
+  static const perpPerp = MarketPair(buy: 'perp', sell: 'perp');
+
+  Map<String, String> toJson() => {'buy': buy, 'sell': sell};
+
+  @override
+  bool operator ==(Object other) =>
+      other is MarketPair && other.buy == buy && other.sell == sell;
+
+  @override
+  int get hashCode => Object.hash(buy, sell);
+}
+
 /// The subscribe-time filter set. Every field is optional; a `null` field is
 /// omitted from the wire message so the server applies its own default.
 ///
@@ -50,8 +74,17 @@ class ClientConfig {
   final String? quote;
   final List<String>? allowSymbols;
   final List<String>? denySymbols;
+  final List<MarketPair>? marketPairs;
   final String? min24hQuoteVolume;
+
+  /// 24h volume ceiling. `null` omits the field (server default applies);
+  /// [maxVolumeOff] sends an explicit JSON `null` — ceiling disabled.
+  final String? max24hQuoteVolume;
   final String? minOpenInterest;
+
+  /// Sentinel for [max24hQuoteVolume]: an empty string encodes the wire's
+  /// explicit `"max_24h_quote_volume": null`.
+  static const maxVolumeOff = '';
   final String? minNetSpreadPct;
   final String? maxNetSpreadPct;
   final String? targetNotionalQ;
@@ -79,7 +112,9 @@ class ClientConfig {
     this.quote,
     this.allowSymbols,
     this.denySymbols,
+    this.marketPairs,
     this.min24hQuoteVolume,
+    this.max24hQuoteVolume,
     this.minOpenInterest,
     this.minNetSpreadPct,
     this.maxNetSpreadPct,
@@ -116,7 +151,14 @@ class ClientConfig {
     put('quote', quote);
     put('allow_symbols', allowSymbols);
     put('deny_symbols', denySymbols);
+    put('market_pairs',
+        marketPairs?.map((pair) => pair.toJson()).toList());
     put('min_24h_quote_volume', min24hQuoteVolume);
+    if (max24hQuoteVolume == maxVolumeOff) {
+      json['max_24h_quote_volume'] = null;
+    } else {
+      put('max_24h_quote_volume', max24hQuoteVolume);
+    }
     put('min_open_interest', minOpenInterest);
     put('min_net_spread_pct', minNetSpreadPct);
     put('max_net_spread_pct', maxNetSpreadPct);

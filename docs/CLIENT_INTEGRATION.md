@@ -256,10 +256,12 @@ should render the newest event per instrument and not assume every tick arrives.
 | `quote` | string | `"USDT"` | Settlement asset |
 | `allow_symbols` | string[] | `[]` (all) | Base-asset allow list |
 | `deny_symbols` | string[] | `[]` | Base-asset deny list |
-| `min_24h_quote_volume` | decimal-str | `"0"` | Volume floor (not yet enforced) |
+| `market_pairs` | `{buy,sell}`[] of `"spot"\|"perp"` | `[{"buy":"perp","sell":"perp"}]` | Market-kind combos to screen (perp/perp live; spot legs forward-compat) |
+| `min_24h_quote_volume` | decimal-str | `"100000"` | 24h volume floor (USDT) |
+| `max_24h_quote_volume` | decimal-str? | `"200000"` | 24h volume ceiling (USDT); `null` = off |
 | `min_open_interest` | decimal-str? | `null` | OI floor (not yet enforced) |
-| `min_net_spread_pct` | decimal-str | `"0.02"` | Lower band = 2% |
-| `max_net_spread_pct` | decimal-str | `"0.20"` | Upper band = 20% (ghost cap) |
+| `min_net_spread_pct` | decimal-str | `"0.006"` | Lower band = 0.6% |
+| `max_net_spread_pct` | decimal-str | `"0.25"` | Upper band = 25% (ghost cap) |
 | `target_notional_q` | decimal-str | `"2000"` | USDT size the VWAP spread is measured at |
 | `min_executable_notional` | decimal-str | `"500"` | Required real depth on both legs |
 | `depth_levels_n` | int | `20` | Book levels walked for VWAP |
