@@ -94,36 +94,62 @@ void main() {
       );
     });
 
-    test('decodes watch_snapshot with points', () {
+    test('decodes watch_snapshot with In/Out points and funding header', () {
       const raw = '''
       { "type": "watch_snapshot",
         "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
         "resolution_ms": 1000, "window_ms": 900000,
+        "long_exchange": "mexc", "short_exchange": "kucoin",
+        "funding_interval_hours": "8", "next_funding_ms": 1752231600000,
+        "funding_long_apr": "0.1083", "funding_short_apr": "0.0848",
         "points": [
-          { "ts_ms": 1752230400000, "net_pct": "0.0031", "baseline_pct": "0.0030",
+          { "ts_ms": 1752230400000, "net_pct": "0.0031", "in_pct": "0.0031",
+            "out_pct": "-0.0016", "baseline_pct": "0.0030",
             "buy_exchange": "mexc", "sell_exchange": "kucoin",
-            "executable_notional": "2000", "capped_by_depth": false } ] }''';
+            "executable_notional": "2000", "capped_by_depth": false,
+            "funding_long_pct": "0.0001", "funding_short_pct": "0.00008" } ] }''';
       final message = ScreenerServerMessage.decode(raw);
       expect(message, isA<ScreenerWatchSnapshot>());
       final snapshot = message as ScreenerWatchSnapshot;
       expect(snapshot.instrument.pair, 'ARB/USDT');
-      expect(snapshot.resolutionMs, 1000);
-      expect(snapshot.points.single.netPct, '0.0031');
-      expect(snapshot.points.single.baselinePct, '0.0030');
+      expect(snapshot.meta.resolutionMs, 1000);
+      expect(snapshot.meta.longExchange, 'mexc');
+      expect(snapshot.meta.shortExchange, 'kucoin');
+      expect(snapshot.meta.fundingIntervalHours, '8');
+      expect(snapshot.meta.nextFundingMs, 1752231600000);
+      expect(snapshot.meta.fundingLongApr, '0.1083');
+      final point = snapshot.points.single;
+      expect(point.inPct, '0.0031');
+      expect(point.outPct, '-0.0016');
+      expect(point.entryPct, '0.0031');
+      expect(point.fundingLongPct, '0.0001');
+      expect(point.fundingShortPct, '0.00008');
     });
 
-    test('decodes spread_tick', () {
+    test('decodes spread_tick with In/Out', () {
       const raw = '''
       { "type": "spread_tick",
         "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
         "point": { "ts_ms": 1752230402000, "net_pct": "0.0289",
+                   "in_pct": "0.0289", "out_pct": "-0.0010",
                    "capped_by_depth": true } }''';
       final message = ScreenerServerMessage.decode(raw);
       expect(message, isA<ScreenerSpreadTick>());
       final tick = message as ScreenerSpreadTick;
-      expect(tick.point.netPct, '0.0289');
+      expect(tick.point.inPct, '0.0289');
+      expect(tick.point.outPct, '-0.0010');
       expect(tick.point.cappedByDepth, isTrue);
       expect(tick.point.baselinePct, isNull);
+    });
+
+    test('entryPct falls back to net_pct when in_pct absent (legacy)', () {
+      const raw = '''
+      { "type": "spread_tick",
+        "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
+        "point": { "ts_ms": 1, "net_pct": "0.05" } }''';
+      final tick = ScreenerServerMessage.decode(raw) as ScreenerSpreadTick;
+      expect(tick.point.inPct, isNull);
+      expect(tick.point.entryPct, '0.05');
     });
   });
 

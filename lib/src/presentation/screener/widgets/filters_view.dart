@@ -1,6 +1,9 @@
 import 'package:core/core.dart';
+import 'package:crypto_position/src/presentation/screener/settings_reference.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:screener/screener.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// Filters form mapping 1:1 to [ClientConfig]. Seeds from the documented server
 /// defaults, validates via `POST /config/validate`, and re-subscribes on apply.
@@ -231,16 +234,16 @@ class _FiltersViewState extends State<FiltersView> {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: AppButton.outlined(
+                label: 'Проверить',
                 onPressed: _validate,
-                child: const Text('Проверить'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: FilledButton(
+              child: AppButton(
+                label: 'Применить',
                 onPressed: _apply,
-                child: const Text('Применить'),
               ),
             ),
           ],
@@ -254,18 +257,100 @@ class _FiltersViewState extends State<FiltersView> {
         child: Text(title, style: Theme.of(context).textTheme.titleSmall),
       );
 
-  Widget _field(String key, String label, {bool number = false}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: TextField(
-          controller: _text[key],
-          keyboardType: number
-              ? const TextInputType.numberWithOptions(decimal: false)
-              : TextInputType.text,
-          decoration: InputDecoration(
-            labelText: label,
-            border: const OutlineInputBorder(),
-            isDense: true,
+  Widget _field(String key, String label, {bool number = false}) {
+    final help = kFilterHelp[key];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: AppTextField(
+        controller: _text[key],
+        labelText: label,
+        keyboardType: number
+            ? const TextInputType.numberWithOptions(decimal: false)
+            : TextInputType.text,
+        helpTooltip: help?.tooltip,
+        onHelpPressed: help == null ? null : () => _showHelp(help),
+      ),
+    );
+  }
+
+  /// Desktop platforms open a popup dialog; mobile opens a bottom sheet.
+  bool get _isDesktop {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+        return true;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  void _showHelp(SettingHelp help) {
+    if (_isDesktop) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(help.key),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(child: _HelpContent(help: help)),
+          ),
+          actions: [
+            AppButton(
+              label: 'Понятно',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (context) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(help.key, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _HelpContent(help: help),
+              ],
+            ),
           ),
         ),
       );
+    }
+  }
+}
+
+/// Meta line + full description shared by the desktop dialog and the mobile
+/// bottom sheet.
+class _HelpContent extends StatelessWidget {
+  final SettingHelp help;
+
+  const _HelpContent({required this.help});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          help.meta,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.outline),
+        ),
+        const SizedBox(height: 12),
+        Text(help.description, style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
 }

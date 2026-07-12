@@ -7,7 +7,6 @@ import 'package:crypto_position/src/presentation/screener/screener_screen.dart';
 import 'package:crypto_position/src/presentation/settings/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:screener/screener.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -81,7 +80,7 @@ GoRouter get router => GoRouter(
       path: '/coin',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (BuildContext context, GoRouterState state) {
-        return CoinChartScreen(instrument: state.extra! as Instrument);
+        return CoinChartScreen(args: state.extra! as CoinChartArgs);
       },
     ),
   ],

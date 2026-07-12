@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/presentation/screener/coin_chart_screen.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen_wm.dart';
 import 'package:crypto_position/src/presentation/screener/widgets/connection_status_badge.dart';
 import 'package:crypto_position/src/presentation/screener/widgets/filters_view.dart';
@@ -37,8 +38,14 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                   signals: wm.signals,
                   summary: wm.summary,
                   onRefresh: wm.refreshSummary,
-                  onTap: (context, instrument) =>
-                      context.push('/coin', extra: instrument),
+                  onTap: (context, instrument, long, short) => context.push(
+                    '/coin',
+                    extra: CoinChartArgs(
+                      instrument: instrument,
+                      longExchange: long,
+                      shortExchange: short,
+                    ),
+                  ),
                 ),
                 UniverseView(universe: wm.universe),
                 FiltersView(

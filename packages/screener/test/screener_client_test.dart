@@ -110,6 +110,8 @@ void main() {
     final ok = client.watch(
       const Instrument(base: 'ARB', quote: 'USDT', kind: 'perp'),
       windowMs: 600000,
+      longExchange: 'mexc',
+      shortExchange: 'kucoin',
     );
     expect(ok, isTrue);
     expect(channel.sent.single['type'], 'watch');
@@ -118,6 +120,8 @@ void main() {
       'ARB',
     );
     expect(channel.sent.single['window_ms'], 600000);
+    expect(channel.sent.single['long_exchange'], 'mexc');
+    expect(channel.sent.single['short_exchange'], 'kucoin');
   });
 
   test('watch cap rejects a 4th distinct instrument', () {

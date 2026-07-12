@@ -23,6 +23,13 @@ class AppTextField extends StatelessWidget {
   final FocusNode? focusNode;
   final TextInputAction? textInputAction;
 
+  /// When set, a "?" help button is shown to the right of [labelText].
+  final VoidCallback? onHelpPressed;
+
+  /// Short hint shown as a tooltip on the "?" button (hover on desktop,
+  /// long-press on mobile). Requires [onHelpPressed].
+  final String? helpTooltip;
+
   const AppTextField({
     super.key,
     this.controller,
@@ -42,6 +49,8 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.focusNode,
     this.textInputAction,
+    this.onHelpPressed,
+    this.helpTooltip,
   });
 
   @override
@@ -55,13 +64,23 @@ class AppTextField extends StatelessWidget {
         if (labelText != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            child: Text(
-              labelText!,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    labelText!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (onHelpPressed != null) ...[
+                  const SizedBox(width: AppSpacing.xs2),
+                  _buildHelpButton(),
+                ],
+              ],
             ),
           ),
         TextField(
@@ -164,5 +183,19 @@ class AppTextField extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  Widget _buildHelpButton() {
+    final button = InkResponse(
+      onTap: onHelpPressed,
+      radius: 16,
+      child: const Icon(
+        Icons.help_outline,
+        size: 16,
+        color: AppColors.textTertiary,
+      ),
+    );
+    if (helpTooltip == null) return button;
+    return Tooltip(message: helpTooltip!, child: button);
   }
 }

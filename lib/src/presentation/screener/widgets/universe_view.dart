@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:screener/screener.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// Browsable traded-instrument catalog: which coins list on which venues.
 /// Filters by base-asset substring.
@@ -29,13 +30,10 @@ class _UniverseViewState extends State<UniverseView> {
       children: [
         Padding(
           padding: const EdgeInsets.all(12),
-          child: TextField(
+          child: AppTextField(
             controller: _controller,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Поиск монеты (например, BTC)',
-              border: OutlineInputBorder(),
-            ),
+            prefixIcon: const Icon(Icons.search),
+            hintText: 'Поиск монеты (например, BTC)',
             onChanged: (value) =>
                 setState(() => _query = value.trim().toUpperCase()),
           ),

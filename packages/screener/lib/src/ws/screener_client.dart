@@ -46,7 +46,13 @@ class ScreenerClient {
 
   /// Active chart watches keyed by instrument pair, so they can be re-sent on a
   /// fresh socket (they survive `subscribe`/reconfigure but not a reconnect).
-  final _activeWatches = <String, ({Instrument instrument, int windowMs})>{};
+  final _activeWatches = <String,
+      ({
+    Instrument instrument,
+    int windowMs,
+    String? longExchange,
+    String? shortExchange,
+  })>{};
 
   final _state = ValueNotifier<WsConnectionState>(
     WsConnectionState.disconnected,
@@ -92,25 +98,50 @@ class ScreenerClient {
 
   ClientConfig get clientConfig => _clientConfig;
 
-  /// Starts a live chart watch for [instrument]. Returns `false` (and sends
-  /// nothing) when the local [maxWatches] cap is already reached for a new
-  /// instrument. Re-watching an instrument already watched refreshes it.
-  bool watch(Instrument instrument, {int windowMs = 900000}) {
+  /// Starts a live chart watch for [instrument], pinned to the
+  /// [longExchange]/[shortExchange] pair (from the tapped signal: long =
+  /// `buy_exchange`, short = `sell_exchange`). Omit the pair to let the server
+  /// fix the best pair. Returns `false` (and sends nothing) when the local
+  /// [maxWatches] cap is already reached for a new instrument. Re-watching an
+  /// instrument already watched refreshes it.
+  bool watch(
+    Instrument instrument, {
+    int windowMs = 900000,
+    String? longExchange,
+    String? shortExchange,
+  }) {
     final key = instrument.pair;
     if (!_activeWatches.containsKey(key) &&
         _activeWatches.length >= maxWatches) {
       return false;
     }
-    _activeWatches[key] = (instrument: instrument, windowMs: windowMs);
+    _activeWatches[key] = (
+      instrument: instrument,
+      windowMs: windowMs,
+      longExchange: longExchange,
+      shortExchange: shortExchange,
+    );
     if (_state.value == WsConnectionState.connected) {
-      _send({
-        'type': 'watch',
-        'instrument': _instrumentJson(instrument),
-        'window_ms': windowMs,
-      });
+      _send(_watchMessage(_activeWatches[key]!));
     }
     return true;
   }
+
+  static Map<String, Object?> _watchMessage(
+    ({
+      Instrument instrument,
+      int windowMs,
+      String? longExchange,
+      String? shortExchange,
+    }) watch,
+  ) =>
+      {
+        'type': 'watch',
+        'instrument': _instrumentJson(watch.instrument),
+        'window_ms': watch.windowMs,
+        if (watch.longExchange != null) 'long_exchange': watch.longExchange,
+        if (watch.shortExchange != null) 'short_exchange': watch.shortExchange,
+      };
 
   void unwatch(Instrument instrument) {
     if (_activeWatches.remove(instrument.pair) == null) return;
@@ -225,11 +256,7 @@ class ScreenerClient {
     if (_freshSocket) {
       _freshSocket = false;
       for (final watch in _activeWatches.values) {
-        _send({
-          'type': 'watch',
-          'instrument': _instrumentJson(watch.instrument),
-          'window_ms': watch.windowMs,
-        });
+        _send(_watchMessage(watch));
       }
     }
   }

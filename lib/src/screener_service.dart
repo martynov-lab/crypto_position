@@ -57,16 +57,21 @@ class ScreenerService {
 
   ClientConfig get clientConfig => _client.clientConfig;
 
-  /// Opens a live spread-chart watch for [instrument]. The caller owns the
-  /// returned controller and MUST call `dispose()` (sends `unwatch`).
+  /// Opens a live spread-chart watch for [instrument], pinned to the
+  /// [longExchange]/[shortExchange] pair (from the tapped signal). The caller
+  /// owns the returned controller and MUST call `dispose()` (sends `unwatch`).
   SpreadChartController watchInstrument(
     Instrument instrument, {
     int windowMs = 900000,
+    String? longExchange,
+    String? shortExchange,
   }) =>
       SpreadChartController(
         _client,
         instrument: instrument,
         windowMs: windowMs,
+        longExchange: longExchange,
+        shortExchange: shortExchange,
       );
 
   void init() {

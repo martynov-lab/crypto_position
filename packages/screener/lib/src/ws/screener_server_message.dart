@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/instrument_coverage.dart';
 import '../models/signal_event.dart';
 import '../models/spread_point.dart';
+import '../models/watch_meta.dart';
 
 /// A decoded message pushed by the screener server, tagged by its `type` field.
 sealed class ScreenerServerMessage {
@@ -36,8 +37,7 @@ sealed class ScreenerServerMessage {
           instrument: Instrument.fromJson(
             (json['instrument'] as Map).cast<String, Object?>(),
           ),
-          resolutionMs: (json['resolution_ms'] as num?)?.toInt() ?? 0,
-          windowMs: (json['window_ms'] as num?)?.toInt() ?? 0,
+          meta: WatchMeta.fromJson(json),
           points: rows
               .whereType<Map>()
               .map((e) => SpreadPoint.fromJson(e.cast<String, Object?>()))
@@ -83,14 +83,12 @@ class ScreenerEvent extends ScreenerServerMessage {
 /// One-shot backfill for a `watch`, filling the chart window instantly.
 class ScreenerWatchSnapshot extends ScreenerServerMessage {
   final Instrument instrument;
-  final int resolutionMs;
-  final int windowMs;
+  final WatchMeta meta;
   final List<SpreadPoint> points;
 
   const ScreenerWatchSnapshot({
     required this.instrument,
-    required this.resolutionMs,
-    required this.windowMs,
+    required this.meta,
     required this.points,
   });
 }

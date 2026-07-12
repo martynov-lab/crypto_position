@@ -9,8 +9,14 @@ class SignalsView extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
   final Future<void> Function() onRefresh;
 
-  /// Tapping a coin opens its live spread chart.
-  final void Function(BuildContext context, Instrument instrument) onTap;
+  /// Tapping a coin opens its live spread chart, pinned to the signal's pair
+  /// (long = buy_exchange, short = sell_exchange).
+  final void Function(
+    BuildContext context,
+    Instrument instrument,
+    String? longExchange,
+    String? shortExchange,
+  ) onTap;
 
   const SignalsView({
     super.key,
@@ -44,7 +50,12 @@ class SignalsView extends StatelessWidget {
 
 class _SummaryFallback extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
-  final void Function(BuildContext context, Instrument instrument) onTap;
+  final void Function(
+    BuildContext context,
+    Instrument instrument,
+    String? longExchange,
+    String? shortExchange,
+  ) onTap;
 
   const _SummaryFallback({required this.summary, required this.onTap});
 
@@ -77,7 +88,10 @@ class _SummaryFallback extends StatelessWidget {
                   trailing: _PercentLabel(fraction: row.netPct),
                   onTap: () {
                     final instrument = _instrumentFromPair(row.instrument);
-                    if (instrument != null) onTap(context, instrument);
+                    if (instrument != null) {
+                      onTap(context, instrument, row.buyExchange,
+                          row.sellExchange);
+                    }
                   },
                 ),
               ),
@@ -97,7 +111,12 @@ Instrument? _instrumentFromPair(String pair) {
 
 class _SignalCard extends StatelessWidget {
   final SignalEvent event;
-  final void Function(BuildContext context, Instrument instrument) onTap;
+  final void Function(
+    BuildContext context,
+    Instrument instrument,
+    String? longExchange,
+    String? shortExchange,
+  ) onTap;
 
   const _SignalCard({required this.event, required this.onTap});
 
@@ -107,7 +126,8 @@ class _SignalCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: InkWell(
-        onTap: () => onTap(context, spread.instrument),
+        onTap: () => onTap(context, spread.instrument, spread.buyExchange,
+            spread.sellExchange),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
