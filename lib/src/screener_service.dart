@@ -21,7 +21,6 @@ class ScreenerService {
 
   final ScreenerClient _client;
   final ScreenerRestApi _rest;
-  final ReconnectionService _reconnectionService;
 
   final _byPair = <String, SignalEvent>{};
   Timer? _pruneTimer;
@@ -32,21 +31,25 @@ class ScreenerService {
   StreamSubscription<SignalEvent>? _eventSub;
   StreamSubscription<String>? _errorSub;
 
-  ScreenerService({
-    ScreenerConfig config = const ScreenerConfig(),
-    required ReconnectionService reconnectionService,
-  })  : _reconnectionService = reconnectionService,
-        _client = ScreenerClient(config: config),
-        _rest = ScreenerRestApi(
-          RestClient(
-            createSharedHttpClient()
-              ..interceptors.addAll([
-                BaseUrlDioInterceptor(getHost: () => Uri.parse(config.baseRestUrl)),
-                if (kDebugMode)
-                  LogInterceptor(requestBody: true, responseBody: true),
-              ]),
-          ),
-        );
+  ScreenerService({ScreenerConfig config = const ScreenerConfig()})
+    : _client = ScreenerClient(
+        config: config,
+        // Stay connected across focus loss / background: never give up, so
+        // the public signal feed keeps running instead of dropping offline.
+        retryPolicy: const PersistentReconnectPolicy(),
+      ),
+      _rest = ScreenerRestApi(
+        RestClient(
+          createSharedHttpClient()
+            ..interceptors.addAll([
+              BaseUrlDioInterceptor(
+                getHost: () => Uri.parse(config.baseRestUrl),
+              ),
+              if (kDebugMode)
+                LogInterceptor(requestBody: true, responseBody: true),
+            ]),
+        ),
+      );
 
   /// `connected` once the `subscribe` handshake is acked.
   ValueListenable<WsConnectionState> get connectionState => _client.state;
@@ -73,22 +76,18 @@ class ScreenerService {
     int windowMs = 900000,
     String? longExchange,
     String? shortExchange,
-  }) =>
-      SpreadChartController(
-        _client,
-        instrument: instrument,
-        windowMs: windowMs,
-        longExchange: longExchange,
-        shortExchange: shortExchange,
-      );
+  }) => SpreadChartController(
+    _client,
+    instrument: instrument,
+    windowMs: windowMs,
+    longExchange: longExchange,
+    shortExchange: shortExchange,
+  );
 
   void init() {
     _eventSub = _client.events.listen(_onEvent);
     _errorSub = _client.errors.listen((message) => _error.value = message);
     _client.start();
-    _reconnectionService
-      ..addOnConnectedAction(_wsConnect)
-      ..addOnDisconnectedAction(_wsDisconnect);
     _pruneTimer = Timer.periodic(_pruneInterval, (_) => _publish());
     unawaited(refreshSummary());
   }
@@ -105,8 +104,7 @@ class ScreenerService {
   /// Validates a config server-side without subscribing.
   Future<Result<ConfigValidation, Object>> validateConfig(
     ClientConfig config,
-  ) =>
-      _rest.validateConfig(config);
+  ) => _rest.validateConfig(config);
 
   Future<void> refreshSummary() async {
     final result = await _rest.fetchSummary();
@@ -130,15 +128,8 @@ class ScreenerService {
     _signals.value = list;
   }
 
-  Future<void> _wsConnect() async => _client.start();
-
-  Future<void> _wsDisconnect() async => _client.stop();
-
   void dispose() {
     _pruneTimer?.cancel();
-    _reconnectionService
-      ..removeOnConnectedAction(_wsConnect)
-      ..removeOnDisconnectedAction(_wsDisconnect);
     unawaited(_eventSub?.cancel());
     unawaited(_errorSub?.cancel());
     _client.dispose();

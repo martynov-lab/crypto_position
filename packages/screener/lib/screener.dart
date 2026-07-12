@@ -8,6 +8,7 @@ export 'src/models/summary_entry.dart';
 export 'src/models/watch_meta.dart';
 export 'src/rest/screener_rest_api.dart';
 export 'src/screener_config.dart';
+export 'src/ws/persistent_reconnect_policy.dart';
 export 'src/ws/screener_client.dart';
 export 'src/ws/screener_server_message.dart';
 export 'src/ws/spread_chart_controller.dart';

@@ -112,9 +112,7 @@ class PositionProvider extends StatelessWidget {
         dispose: (_, value) => value.dispose(),
       ),
       Provider<ScreenerService>(
-        create: (context) => ScreenerService(
-          reconnectionService: context.read<ReconnectionService>(),
-        ),
+        create: (_) => ScreenerService(),
         dispose: (_, value) => value.dispose(),
       ),
     ],
