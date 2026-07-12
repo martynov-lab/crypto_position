@@ -99,6 +99,20 @@ class _FiltersViewState extends State<FiltersView> {
   static TextEditingController _seed(Object? fromConfig, Object defaultValue) =>
       TextEditingController(text: '${fromConfig ?? defaultValue}');
 
+  /// Normalizes a user-typed symbol to its base asset: strips a `/QUOTE` or
+  /// trailing `USDT` so "BBUSDT" / "BB/USDT" / "bb" all become "BB". The server
+  /// matches deny/allow on the base asset only, case-insensitively.
+  static String _baseAsset(String raw) {
+    var symbol = raw.toUpperCase();
+    final slash = symbol.indexOf('/');
+    if (slash >= 0) symbol = symbol.substring(0, slash);
+    const quote = 'USDT';
+    if (symbol.length > quote.length && symbol.endsWith(quote)) {
+      symbol = symbol.substring(0, symbol.length - quote.length);
+    }
+    return symbol;
+  }
+
   @override
   void dispose() {
     for (final controller in _text.values) {
@@ -125,14 +139,17 @@ class _FiltersViewState extends State<FiltersView> {
       return parts.isEmpty ? null : parts;
     }
 
+    // allow/deny match on the base asset only: "BBUSDT" / "BB/USDT" → "BB".
+    List<String>? symbols(String key) => csv(key)?.map(_baseAsset).toList();
+
     return ClientConfig(
       exchanges:
           _exchanges.length == ScreenerDefaults.allExchanges.length
               ? null
               : _exchanges.toList(),
       quote: str('quote'),
-      allowSymbols: csv('allow'),
-      denySymbols: csv('deny'),
+      allowSymbols: symbols('allow'),
+      denySymbols: symbols('deny'),
       marketPairs: setEquals(_marketPairs, {...ScreenerDefaults.marketPairs})
           ? null
           : _marketPairs.toList(),
@@ -258,8 +275,8 @@ class _FiltersViewState extends State<FiltersView> {
         _field('cooldown', 'Пауза между сигналами (мс)', number: true),
         _field('maxPerMin', 'Лимит сигналов в минуту', number: true),
         _section('Символы и требования'),
-        _field('allow', 'Allow-лист (через запятую)'),
-        _field('deny', 'Deny-лист (через запятую)'),
+        _field('allow', 'Allow-лист (базовый актив: BB, ETH)'),
+        _field('deny', 'Deny-лист (базовый актив: BB, ETH)'),
         _field('minVolume', 'Объём 24ч: от (USDT)'),
         _field('maxVolume', 'Объём 24ч: до (USDT, пусто — без потолка)'),
         _field('minOi', 'Мин. открытый интерес'),

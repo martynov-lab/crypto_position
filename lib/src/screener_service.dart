@@ -12,11 +12,19 @@ import 'package:screener/screener.dart';
 /// WebSocket signal stream on [init] and keeps a newest-wins table of live
 /// [SignalEvent]s keyed by instrument.
 class ScreenerService {
+  /// Signals older than this are pruned from the live table — the spread has
+  /// long since closed, so a stale card is misleading.
+  static const _signalTtl = Duration(minutes: 5);
+
+  /// How often the stale-signal sweep runs even without new events arriving.
+  static const _pruneInterval = Duration(seconds: 30);
+
   final ScreenerClient _client;
   final ScreenerRestApi _rest;
   final ReconnectionService _reconnectionService;
 
   final _byPair = <String, SignalEvent>{};
+  Timer? _pruneTimer;
   final ValueNotifier<List<SignalEvent>> _signals = ValueNotifier(const []);
   final ValueNotifier<List<SummaryEntry>> _summary = ValueNotifier(const []);
   final ValueNotifier<String?> _error = ValueNotifier(null);
@@ -81,6 +89,7 @@ class ScreenerService {
     _reconnectionService
       ..addOnConnectedAction(_wsConnect)
       ..addOnDisconnectedAction(_wsDisconnect);
+    _pruneTimer = Timer.periodic(_pruneInterval, (_) => _publish());
     unawaited(refreshSummary());
   }
 
@@ -106,6 +115,16 @@ class ScreenerService {
 
   void _onEvent(SignalEvent event) {
     _byPair[event.instrument.pair] = event;
+    _publish();
+  }
+
+  /// Drops signals past their [_signalTtl], then re-publishes the table sorted
+  /// by quality (best first). Idempotent — the periodic sweep and each new
+  /// event both funnel through here.
+  void _publish() {
+    final cutoff =
+        DateTime.now().millisecondsSinceEpoch - _signalTtl.inMilliseconds;
+    _byPair.removeWhere((_, event) => event.tsMs < cutoff);
     final list = _byPair.values.toList()
       ..sort((a, b) => b.sortScore.compareTo(a.sortScore));
     _signals.value = list;
@@ -116,6 +135,7 @@ class ScreenerService {
   Future<void> _wsDisconnect() async => _client.stop();
 
   void dispose() {
+    _pruneTimer?.cancel();
     _reconnectionService
       ..removeOnConnectedAction(_wsConnect)
       ..removeOnDisconnectedAction(_wsDisconnect);

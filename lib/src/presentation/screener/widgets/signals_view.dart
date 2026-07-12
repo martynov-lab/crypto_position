@@ -9,6 +9,11 @@ class SignalsView extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
   final Future<void> Function() onRefresh;
 
+  /// Read fresh on each rebuild so the `/summary` fallback re-filters after a
+  /// filter change (deny list + spread band applied client-side).
+  final ClientConfig Function() configOf;
+
+
   /// Tapping a coin opens its live spread chart, pinned to the signal's pair
   /// (long = buy_exchange, short = sell_exchange).
   final void Function(
@@ -23,6 +28,7 @@ class SignalsView extends StatelessWidget {
     required this.signals,
     required this.summary,
     required this.onRefresh,
+    required this.configOf,
     required this.onTap,
   });
 
@@ -32,7 +38,11 @@ class SignalsView extends StatelessWidget {
       valueListenable: signals,
       builder: (context, events, _) {
         if (events.isEmpty) {
-          return _SummaryFallback(summary: summary, onTap: onTap);
+          return _SummaryFallback(
+            summary: summary,
+            configOf: configOf,
+            onTap: onTap,
+          );
         }
         return RefreshIndicator(
           onRefresh: onRefresh,
@@ -50,6 +60,7 @@ class SignalsView extends StatelessWidget {
 
 class _SummaryFallback extends StatelessWidget {
   final ValueListenable<List<SummaryEntry>> summary;
+  final ClientConfig Function() configOf;
   final void Function(
     BuildContext context,
     Instrument instrument,
@@ -57,26 +68,25 @@ class _SummaryFallback extends StatelessWidget {
     String? shortExchange,
   ) onTap;
 
-  const _SummaryFallback({required this.summary, required this.onTap});
+  const _SummaryFallback({
+    required this.summary,
+    required this.configOf,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<SummaryEntry>>(
       valueListenable: summary,
-      builder: (context, rows, _) {
+      builder: (context, allRows, _) {
+        final rows = _applyLocalFilters(allRows, configOf());
         if (rows.isEmpty) {
           return const Center(child: Text('Ожидание сигналов…'));
         }
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                'Снимок /summary (нет живых сигналов)',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
+            const _FallbackBanner(),
             for (final row in rows)
               Card(
                 child: ListTile(
@@ -107,6 +117,64 @@ Instrument? _instrumentFromPair(String pair) {
   final parts = pair.split('/');
   if (parts.length != 2) return null;
   return Instrument(base: parts[0], quote: parts[1], kind: 'perp');
+}
+
+/// The `/summary` snapshot is filtered server-side by its *default* config, so
+/// the client's deny list and spread band still have to be applied locally
+/// before rendering. Volume/OI can't be filtered here — `/summary` carries no
+/// volume field. Band edges are only applied when the user actually set them.
+List<SummaryEntry> _applyLocalFilters(
+  List<SummaryEntry> rows,
+  ClientConfig config,
+) {
+  final deny = {
+    for (final symbol in config.denySymbols ?? const <String>[])
+      symbol.toUpperCase(),
+  };
+  final minNet = Decimals.parse(config.minNetSpreadPct);
+  final maxNet = Decimals.parse(config.maxNetSpreadPct);
+  return rows.where((row) {
+    final base = row.instrument.split('/').first.toUpperCase();
+    if (deny.contains(base)) return false;
+    final net = Decimals.parse(row.netPct);
+    if (net != null) {
+      if (minNet != null && net < minNet) return false;
+      if (maxNet != null && net > maxNet) return false;
+    }
+    return true;
+  }).toList();
+}
+
+/// Colored banner making it unmistakable that these rows are an overview
+/// snapshot (best spread per coin from `/summary`), not live signals.
+class _FallbackBanner extends StatelessWidget {
+  const _FallbackBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 18, color: scheme.onTertiaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Обзорный снимок /summary — это не живые сигналы. '
+              'Лучший спред по каждой монете; обновляется по запросу.',
+              style: TextStyle(color: scheme.onTertiaryContainer, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SignalCard extends StatelessWidget {
