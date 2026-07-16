@@ -51,26 +51,21 @@ class GateAccountRepository implements ExchangeAccountRepository {
 
   @override
   Future<Result<BalanceModel, Object>> fetchBalance() async {
-    final result = await _api.fetchBalance();
+    // The futures account is read only for the numeric user id, which Gate
+    // requires in the private positions subscription. Its balance covers the
+    // futures wallet alone and would miss funds held on spot, so the money
+    // itself comes from the whole-account total below.
+    if (await _api.fetchBalance() case Ok(:final value)) {
+      userId = value.user;
+    }
+
+    final result = await _api.fetchTotalBalance();
 
     switch (result) {
       case Err(:final error):
         return Err(error);
       case Ok(:final value):
-        userId = value.user;
-        var model = value.toModel();
-        // Unified-account users see 0 on the futures endpoint because their
-        // funds live in one shared wallet; fall back to the unified account.
-        if (model.totalWalletBalance == 0) {
-          final unified = await _api.fetchUnifiedBalance();
-          if (unified case Ok(value: final unifiedDto)) {
-            final unifiedModel = unifiedDto.toModel();
-            if (unifiedModel.totalWalletBalance > 0) {
-              if (unifiedDto.userId != 0) userId = unifiedDto.userId;
-              model = unifiedModel;
-            }
-          }
-        }
+        final model = value.toModel();
         _balance.value = model;
         return Ok(model);
     }

@@ -2,6 +2,7 @@ export 'src/api/dto/balance_dto.dart';
 export 'src/api/dto/contract_dto.dart';
 export 'src/api/dto/position_dto.dart';
 export 'src/api/dto/ticker_dto.dart';
+export 'src/api/dto/total_balance_dto.dart';
 export 'src/api/gate_account_api.dart';
 export 'src/api/gate_ws_protocol.dart';
 export 'src/api/mappers/balance_mapper.dart';

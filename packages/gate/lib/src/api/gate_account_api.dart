@@ -5,7 +5,7 @@ import 'dto/balance_dto.dart';
 import 'dto/contract_dto.dart';
 import 'dto/position_close_dto.dart';
 import 'dto/position_dto.dart';
-import 'dto/unified_account_dto.dart';
+import 'dto/total_balance_dto.dart';
 
 /// Gate futures scoped to the USDT-settled market.
 const _base = '/api/v4/futures/usdt';
@@ -35,17 +35,21 @@ class GateAccountApi {
     );
   }
 
-  /// The unified account (a single object). Used as a fallback for users on a
-  /// unified account, whose funds do not appear on the futures endpoint.
-  Future<Result<UnifiedAccountDto, Object>> fetchUnifiedBalance() async {
+  /// Every wallet (spot, futures, margin, earn) summed and converted to USDT by
+  /// Gate. Unlike [fetchBalance], which sees only the futures wallet, this is
+  /// the account total the exchange's own UI shows.
+  ///
+  /// Fails with a permission error when the API key lacks wallet read access.
+  Future<Result<TotalBalanceDto, Object>> fetchTotalBalance() async {
     final response = await _client.get<Map<String, Object?>>(
-      '/api/v4/unified/accounts',
+      '/api/v4/wallet/total_balance',
+      queryParams: {'currency': 'USDT'},
     );
 
-    return response.fold<Result<UnifiedAccountDto, Object>>(
+    return response.fold<Result<TotalBalanceDto, Object>>(
       (data) {
         try {
-          return Ok(UnifiedAccountDto.fromJson(data));
+          return Ok(TotalBalanceDto.fromJson(data));
         } on Object catch (error) {
           return Err(error);
         }
