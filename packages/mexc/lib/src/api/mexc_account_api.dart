@@ -3,6 +3,7 @@ import 'package:network/network.dart';
 
 import 'dto/balance_dto.dart';
 import 'dto/contract_detail_dto.dart';
+import 'dto/funding_rate_dto.dart';
 import 'dto/history_position_dto.dart';
 import 'dto/position_dto.dart';
 import 'dto/ticker_dto.dart';
@@ -65,6 +66,28 @@ class MexcAccountApi {
             .map((e) => HistoryPositionDto.fromJson(e! as Map<String, Object?>))
             .toList(),
       ),
+      (error) => Err(error),
+    );
+  }
+
+  /// Public: the funding schedule for one contract, whose `nextSettleTime` the
+  /// ticker does not carry. Unlike the other endpoints MEXC returns a single
+  /// object here rather than a list, so it cannot use [_parse].
+  Future<Result<FundingRateDto, Object>> fetchFundingRate(String symbol) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v1/contract/funding_rate/$symbol',
+    );
+    return response.fold<Result<FundingRateDto, Object>>(
+      (data) {
+        final envelopeError = _envelopeError(data);
+        if (envelopeError != null) return Err(envelopeError);
+        try {
+          final object = data['data'] as Map<String, Object?>? ?? const {};
+          return Ok(FundingRateDto.fromJson(object));
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
       (error) => Err(error),
     );
   }

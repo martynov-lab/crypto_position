@@ -14,8 +14,17 @@ extension PositionMapper on PositionDto {
         markPrice: _parseAmount(markPrice),
         unrealisedPnl: _parseAmount(unrealisedPnl),
         leverage: _parseAmount(leverage),
+        createdAt: _parseTimestamp(createdTime),
       );
 }
 
 /// Bybit returns '' for fields that are not applicable.
 double _parseAmount(String value) => value.isEmpty ? 0 : double.parse(value);
+
+/// Epoch-ms string, or null when the field is absent (the WS position topic
+/// omits it on some frames).
+DateTime? _parseTimestamp(String value) {
+  final ms = int.tryParse(value);
+  if (ms == null || ms <= 0) return null;
+  return DateTime.fromMillisecondsSinceEpoch(ms);
+}

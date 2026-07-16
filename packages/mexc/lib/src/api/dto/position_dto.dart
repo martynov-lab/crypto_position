@@ -25,6 +25,14 @@ class PositionDto {
   @JsonKey(defaultValue: 1)
   final int state;
 
+  /// Epoch milliseconds the position was opened.
+  final num? createTime;
+
+  /// Funding accumulated over the position's life, signed from the account's
+  /// point of view (negative is paid out). MEXC reports no matching total for
+  /// trading fees, so commission stays unknown on this exchange.
+  final num? holdFee;
+
   const PositionDto({
     required this.symbol,
     required this.holdVol,
@@ -32,6 +40,8 @@ class PositionDto {
     required this.positionType,
     required this.leverage,
     required this.state,
+    this.createTime,
+    this.holdFee,
   });
 
   factory PositionDto.fromJson(Map<String, Object?> json) =>

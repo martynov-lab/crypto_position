@@ -51,9 +51,11 @@ class OkxAccountRepositoryFactory {
       protocol: protocol,
     );
 
-    // Public stream (no auth): per-instrument mark-price topics for live PnL.
+    // Public stream (no auth): per-instrument mark-price topics for live PnL,
+    // and funding-rate topics for the upcoming funding.
     final publicWsService = WsService(protocol);
     final markPriceSubscriptions = MarkPriceSubscriptions(publicWsService);
+    final fundingRateSubscriptions = FundingRateSubscriptions(publicWsService);
     final publicWsManager = WsManager(
       getUri: () => Uri.parse(_config.basePublicWsUrl),
       wsService: publicWsService,
@@ -67,6 +69,7 @@ class OkxAccountRepositoryFactory {
         accountSubscriber: accountSubscriber,
         positionSubscriber: positionSubscriber,
         markPriceSubscriptions: markPriceSubscriptions,
+        fundingRateSubscriptions: fundingRateSubscriptions,
       ),
       wsManager: wsManager,
       wsService: wsService,

@@ -8,6 +8,7 @@ import '../api/account_subscriber.dart';
 import '../api/bitget_account_api.dart';
 import '../api/dto/balance_dto.dart';
 import '../api/dto/position_dto.dart';
+import '../api/dto/ticker_dto.dart';
 import '../api/mappers/balance_mapper.dart';
 import '../api/mappers/closed_trade_mapper.dart';
 import '../api/mappers/position_mapper.dart';
@@ -106,11 +107,18 @@ class BitgetAccountRepository implements ExchangeAccountRepository {
       final markPrice = current != null && current.markPrice > 0
           ? current.markPrice
           : model.markPrice;
-      _positionsByKey[key] = model.copyWith(
+      // The position channel carries no funding rate (that rides the ticker),
+      // so keep the last known one instead of blanking the row.
+      final merged = model.copyWith(
         markPrice: markPrice,
         unrealisedPnl: markPrice > 0
             ? _pnl(model.side, model.size, model.avgPrice, markPrice)
             : model.unrealisedPnl,
+        fundingRate: model.fundingRate ?? current?.fundingRate,
+        nextFundingTime: model.nextFundingTime ?? current?.nextFundingTime,
+      );
+      _positionsByKey[key] = merged.copyWith(
+        upcomingFundingUsd: _upcomingFunding(merged),
       );
     }
     _publishPositions();
@@ -126,13 +134,8 @@ class BitgetAccountRepository implements ExchangeAccountRepository {
 
     for (final symbol in openSymbols) {
       if (_tickerSubs.containsKey(symbol)) continue;
-      _tickerSubs[symbol] = tickerSubscriptions.subscribe(symbol).listen(
-        (dto) {
-          final markPriceRaw = dto.markPrice;
-          if (markPriceRaw == null || markPriceRaw.isEmpty) return;
-          _applyMarkPrice(dto.instId, double.parse(markPriceRaw));
-        },
-      );
+      _tickerSubs[symbol] =
+          tickerSubscriptions.subscribe(symbol).listen(_applyTicker);
     }
 
     for (final symbol in _tickerSubs.keys.toList()) {
@@ -142,19 +145,58 @@ class BitgetAccountRepository implements ExchangeAccountRepository {
     }
   }
 
-  void _applyMarkPrice(String symbol, double markPrice) {
+  /// Re-prices open positions on the instrument and refreshes their funding.
+  ///
+  /// Delta frames carry only the changed fields, so each of the three is
+  /// applied independently and a missing one keeps its current value.
+  void _applyTicker(TickerDto dto) {
+    final markPrice = _parseAmount(dto.markPrice);
+    final fundingRate = _parseAmount(dto.fundingRate);
+    final nextFundingTime = _parseTimestamp(dto.nextFundingTime);
+    if (markPrice == null && fundingRate == null && nextFundingTime == null) {
+      return;
+    }
+
     var changed = false;
     for (final entry in _positionsByKey.entries.toList()) {
       final position = entry.value;
-      if (position.symbol != symbol) continue;
-      _positionsByKey[entry.key] = position.copyWith(
-        markPrice: markPrice,
-        unrealisedPnl:
-            _pnl(position.side, position.size, position.avgPrice, markPrice),
+      if (position.symbol != dto.instId) continue;
+
+      final mark = markPrice ?? position.markPrice;
+      final repriced = position.copyWith(
+        markPrice: mark,
+        unrealisedPnl: mark > 0
+            ? _pnl(position.side, position.size, position.avgPrice, mark)
+            : position.unrealisedPnl,
+        fundingRate: fundingRate ?? position.fundingRate,
+        nextFundingTime: nextFundingTime ?? position.nextFundingTime,
+      );
+      _positionsByKey[entry.key] = repriced.copyWith(
+        upcomingFundingUsd: _upcomingFunding(repriced),
       );
       changed = true;
     }
     if (changed) _publishPositions();
+  }
+
+  /// Funding due at the next settlement, signed from the account's point of
+  /// view: on a positive rate a long pays and a short receives.
+  static double? _upcomingFunding(PositionModel position) {
+    final rate = position.fundingRate;
+    if (rate == null || position.markPrice <= 0) return null;
+
+    final amount = position.notional * rate;
+    return position.side == 'short' ? amount : -amount;
+  }
+
+  /// Null when the frame omitted the field, so the caller keeps the old value.
+  static double? _parseAmount(String? value) =>
+      (value == null || value.isEmpty) ? null : double.tryParse(value);
+
+  static DateTime? _parseTimestamp(String? value) {
+    final ms = int.tryParse(value ?? '');
+    if (ms == null || ms <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
   }
 
   void _publishPositions() {

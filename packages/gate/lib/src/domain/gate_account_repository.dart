@@ -5,6 +5,7 @@ import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
 
 import '../api/dto/position_dto.dart';
+import '../api/dto/ticker_dto.dart';
 import '../api/gate_account_api.dart';
 import '../api/mappers/balance_mapper.dart';
 import '../api/mappers/closed_trade_mapper.dart';
@@ -96,17 +97,53 @@ class GateAccountRepository implements ExchangeAccountRepository {
   Future<Result<List<PositionModel>, Object>> fetchPositions() async {
     final result = await _api.fetchPositions();
 
-    return result.map((dtoList) {
-      // Gate lists every contract the user has touched, including flat ones.
-      final models =
-          dtoList.map((dto) => dto.toModel()).where((m) => m.size > 0).toList();
-      _positionsByKey
-        ..clear()
-        ..addEntries(models.map((model) => MapEntry(_key(model), model)));
-      _publishPositions();
-      _syncTickerSubscriptions();
-      return models;
-    });
+    switch (result) {
+      case Err(:final error):
+        return Err(error);
+      case Ok(:final value):
+        // Gate lists every contract the user has touched, including flat ones.
+        final models =
+            value.map((dto) => dto.toModel()).where((m) => m.size > 0).toList();
+        _positionsByKey
+          ..clear()
+          ..addEntries(models.map((model) => MapEntry(_key(model), model)));
+        _publishPositions();
+        _syncTickerSubscriptions();
+        await _applyFundingSchedule();
+        return Ok(_positionsByKey.values.toList());
+    }
+  }
+
+  /// Fills in each position's next settlement time from the contracts endpoint,
+  /// which is the only place Gate publishes it — the ticker carries the rate
+  /// but not the schedule.
+  ///
+  /// Best-effort: on failure the time stays null and renders as unknown.
+  Future<void> _applyFundingSchedule() async {
+    if (_positionsByKey.isEmpty) return;
+
+    final result = await _api.fetchContracts();
+    if (result case Ok(:final value)) {
+      final nextApplyByContract = {
+        for (final contract in value) contract.name: contract.fundingNextApply,
+      };
+
+      var changed = false;
+      for (final entry in _positionsByKey.entries.toList()) {
+        final position = entry.value;
+        final seconds = nextApplyByContract[position.symbol];
+        if (seconds == null || seconds <= 0) continue;
+
+        _positionsByKey[entry.key] = position.copyWith(
+          // Gate times this in seconds, not milliseconds.
+          nextFundingTime: DateTime.fromMillisecondsSinceEpoch(
+            (seconds * 1000).toInt(),
+          ),
+        );
+        changed = true;
+      }
+      if (changed) _publishPositions();
+    }
   }
 
   void _onPositionEvent(PositionDto dto) {
@@ -121,11 +158,18 @@ class GateAccountRepository implements ExchangeAccountRepository {
       final markPrice = current != null && current.markPrice > 0
           ? current.markPrice
           : model.markPrice;
-      _positionsByKey[key] = model.copyWith(
+      // The position channel carries no funding, so keep what the ticker and
+      // the contracts endpoint already established.
+      final merged = model.copyWith(
         markPrice: markPrice,
         unrealisedPnl: markPrice > 0
             ? _pnl(model.side, model.size, model.avgPrice, markPrice)
             : model.unrealisedPnl,
+        fundingRate: model.fundingRate ?? current?.fundingRate,
+        nextFundingTime: model.nextFundingTime ?? current?.nextFundingTime,
+      );
+      _positionsByKey[key] = merged.copyWith(
+        upcomingFundingUsd: _upcomingFunding(merged),
       );
     }
     _publishPositions();
@@ -141,13 +185,8 @@ class GateAccountRepository implements ExchangeAccountRepository {
 
     for (final symbol in openSymbols) {
       if (_tickerSubs.containsKey(symbol)) continue;
-      _tickerSubs[symbol] = tickerSubscriptions.subscribe(symbol).listen(
-        (dto) {
-          final markPriceRaw = dto.markPrice;
-          if (markPriceRaw == null || markPriceRaw.isEmpty) return;
-          _applyMarkPrice(dto.contract, double.parse(markPriceRaw));
-        },
-      );
+      _tickerSubs[symbol] =
+          tickerSubscriptions.subscribe(symbol).listen(_applyTicker);
     }
 
     for (final symbol in _tickerSubs.keys.toList()) {
@@ -157,20 +196,47 @@ class GateAccountRepository implements ExchangeAccountRepository {
     }
   }
 
-  void _applyMarkPrice(String symbol, double markPrice) {
+  /// Re-prices open positions on the contract and refreshes their funding rate.
+  /// A tick may carry either field alone, so each is applied independently.
+  void _applyTicker(TickerDto dto) {
+    final markPrice = _parseAmount(dto.markPrice);
+    final fundingRate = _parseAmount(dto.fundingRate);
+    if (markPrice == null && fundingRate == null) return;
+
     var changed = false;
     for (final entry in _positionsByKey.entries.toList()) {
       final position = entry.value;
-      if (position.symbol != symbol) continue;
-      _positionsByKey[entry.key] = position.copyWith(
-        markPrice: markPrice,
-        unrealisedPnl:
-            _pnl(position.side, position.size, position.avgPrice, markPrice),
+      if (position.symbol != dto.contract) continue;
+
+      final mark = markPrice ?? position.markPrice;
+      final repriced = position.copyWith(
+        markPrice: mark,
+        unrealisedPnl: mark > 0
+            ? _pnl(position.side, position.size, position.avgPrice, mark)
+            : position.unrealisedPnl,
+        fundingRate: fundingRate ?? position.fundingRate,
+      );
+      _positionsByKey[entry.key] = repriced.copyWith(
+        upcomingFundingUsd: _upcomingFunding(repriced),
       );
       changed = true;
     }
     if (changed) _publishPositions();
   }
+
+  /// Funding due at the next settlement, signed from the account's point of
+  /// view: on a positive rate a long pays and a short receives.
+  static double? _upcomingFunding(PositionModel position) {
+    final rate = position.fundingRate;
+    if (rate == null || position.markPrice <= 0) return null;
+
+    final amount = position.notional * rate;
+    return position.side == 'short' ? amount : -amount;
+  }
+
+  /// Null when the tick omitted the field, so the caller keeps the old value.
+  static double? _parseAmount(String? value) =>
+      (value == null || value.isEmpty) ? null : double.tryParse(value);
 
   void _publishPositions() {
     final list = _positionsByKey.values.toList()

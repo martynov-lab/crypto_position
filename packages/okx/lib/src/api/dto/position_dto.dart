@@ -7,6 +7,10 @@ part 'position_dto.g.dart';
 ///
 /// [posSide] is `long`, `short`, or `net`; [pos] is the signed size (negative
 /// for a net short).
+///
+/// [fee] and [fundingFee] accumulate over the position's life, so unlike Bybit
+/// no transaction-log walk is needed to total them. Both are signed from the
+/// account's point of view: negative is charged, positive is a rebate/income.
 @JsonSerializable(checked: true, createToJson: false)
 class PositionDto {
   @JsonKey(defaultValue: '')
@@ -23,6 +27,14 @@ class PositionDto {
   final String upl;
   @JsonKey(defaultValue: '0')
   final String lever;
+  @JsonKey(defaultValue: '')
+  final String fee;
+  @JsonKey(defaultValue: '')
+  final String fundingFee;
+
+  /// Epoch milliseconds the position was opened, as a string.
+  @JsonKey(defaultValue: '')
+  final String cTime;
 
   const PositionDto({
     required this.instId,
@@ -32,6 +44,9 @@ class PositionDto {
     required this.markPx,
     required this.upl,
     required this.lever,
+    required this.fee,
+    required this.fundingFee,
+    required this.cTime,
   });
 
   factory PositionDto.fromJson(Map<String, Object?> json) =>

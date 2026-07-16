@@ -18,6 +18,8 @@ PositionDto _$PositionDtoFromJson(Map<String, dynamic> json) =>
         ),
         leverage: $checkedConvert('leverage', (v) => v as num? ?? 0),
         state: $checkedConvert('state', (v) => (v as num?)?.toInt() ?? 1),
+        createTime: $checkedConvert('createTime', (v) => v as num?),
+        holdFee: $checkedConvert('holdFee', (v) => v as num?),
       );
       return val;
     });

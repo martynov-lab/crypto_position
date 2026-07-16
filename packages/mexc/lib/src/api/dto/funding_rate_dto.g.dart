@@ -1,17 +1,17 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'ticker_dto.dart';
+part of 'funding_rate_dto.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-TickerDto _$TickerDtoFromJson(Map<String, dynamic> json) =>
-    $checkedCreate('TickerDto', json, ($checkedConvert) {
-      final val = TickerDto(
+FundingRateDto _$FundingRateDtoFromJson(Map<String, dynamic> json) =>
+    $checkedCreate('FundingRateDto', json, ($checkedConvert) {
+      final val = FundingRateDto(
         symbol: $checkedConvert('symbol', (v) => v as String? ?? ''),
-        fairPrice: $checkedConvert('fairPrice', (v) => v as num?),
         fundingRate: $checkedConvert('fundingRate', (v) => v as num?),
+        nextSettleTime: $checkedConvert('nextSettleTime', (v) => v as num?),
       );
       return val;
     });

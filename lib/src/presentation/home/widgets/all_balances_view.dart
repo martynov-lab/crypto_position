@@ -106,21 +106,111 @@ class AllBalancesView extends StatelessWidget {
   }
 
   Widget _buildPositionCard(BuildContext context, PositionModel position) {
+    final theme = Theme.of(context);
     final pnl = position.unrealisedPnl;
+
     return Card(
-      child: ListTile(
-        title: Text(position.symbol),
-        subtitle: Text(
-          '${position.side} · ${position.size} @ '
-          '${position.avgPrice.toStringAsFixed(2)}',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(position.symbol, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${position.side} · ${position.size} @ '
+                        '${position.avgPrice.toStringAsFixed(2)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (pnl != 0)
+                  Text(
+                    '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: pnl >= 0 ? Colors.green : Colors.red,
+                    ),
+                  ),
+              ],
+            ),
+            const Divider(height: 20),
+            _buildDetailRow(
+              context,
+              _nextFundingLabel(position.nextFundingTime),
+              position.upcomingFundingUsd,
+            ),
+            const SizedBox(height: 4),
+            // Fees are reported as a positive charge; negate them so all three
+            // rows read on one axis, where negative is money out.
+            _buildDetailRow(
+              context,
+              _feesLabel('Комиссия уплачена', position),
+              position.paidCommission == null ? null : -position.paidCommission!,
+            ),
+            const SizedBox(height: 4),
+            _buildDetailRow(
+              context,
+              _feesLabel('Фандинг уплачен', position),
+              position.paidFunding,
+            ),
+          ],
         ),
-        trailing: pnl != 0
-            ? Text(
-                '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}',
-                style: TextStyle(color: pnl >= 0 ? Colors.green : Colors.red),
-              )
-            : null,
       ),
     );
+  }
+
+  /// One `label — amount` line. A null [amount] means the exchange does not
+  /// report the value, and shows a dash rather than a misleading zero.
+  Widget _buildDetailRow(BuildContext context, String label, double? amount) {
+    final theme = Theme.of(context);
+    final Color color;
+    if (amount == null || amount == 0) {
+      color = theme.colorScheme.onSurfaceVariant;
+    } else {
+      color = amount > 0 ? Colors.green : Colors.red;
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          amount == null
+              ? '—'
+              : '${amount > 0 ? '+' : ''}${amount.toStringAsFixed(2)}',
+          style: theme.textTheme.bodySmall?.copyWith(color: color),
+        ),
+      ],
+    );
+  }
+
+  /// Marks the row when the total covers only the lookback window instead of
+  /// the position's whole life, so a long-held position does not read as if it
+  /// had paid less than it did.
+  String _feesLabel(String label, PositionModel position) =>
+      position.hasPartialFees
+          ? '$label · за ${feesLookbackWindow.inDays} дн.'
+          : label;
+
+  String _nextFundingLabel(DateTime? nextFundingTime) {
+    if (nextFundingTime == null) return 'Следующий фандинг';
+
+    final hh = nextFundingTime.hour.toString().padLeft(2, '0');
+    final mm = nextFundingTime.minute.toString().padLeft(2, '0');
+    return 'Следующий фандинг · $hh:$mm';
   }
 }

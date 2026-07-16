@@ -27,6 +27,19 @@ class PositionDto {
   @JsonKey(defaultValue: '0')
   final String leverage;
 
+  /// Epoch milliseconds the position was opened, as a string.
+  @JsonKey(defaultValue: '')
+  final String cTime;
+
+  /// Funding accumulated over the position's life, signed from the account's
+  /// point of view (negative is paid out).
+  @JsonKey(defaultValue: '')
+  final String totalFee;
+
+  /// Trading fees accumulated over the position's life, signed the same way.
+  @JsonKey(defaultValue: '')
+  final String deductedFee;
+
   const PositionDto({
     required this.symbol,
     required this.instId,
@@ -36,6 +49,9 @@ class PositionDto {
     required this.markPrice,
     required this.unrealizedPL,
     required this.leverage,
+    required this.cTime,
+    required this.totalFee,
+    required this.deductedFee,
   });
 
   /// The instrument id, tolerating either REST (`symbol`) or WS (`instId`).

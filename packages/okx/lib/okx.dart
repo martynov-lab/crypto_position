@@ -1,7 +1,9 @@
 export 'src/api/account_subscriber.dart';
 export 'src/api/dto/balance_dto.dart';
+export 'src/api/dto/funding_rate_dto.dart';
 export 'src/api/dto/mark_price_dto.dart';
 export 'src/api/dto/position_dto.dart';
+export 'src/api/funding_rate_subscriptions.dart';
 export 'src/api/mappers/balance_mapper.dart';
 export 'src/api/mappers/position_mapper.dart';
 export 'src/api/mark_price_subscriptions.dart';

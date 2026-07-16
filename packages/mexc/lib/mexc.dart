@@ -1,5 +1,6 @@
 export 'src/api/account_subscriber.dart';
 export 'src/api/dto/balance_dto.dart';
+export 'src/api/dto/funding_rate_dto.dart';
 export 'src/api/dto/position_dto.dart';
 export 'src/api/dto/ticker_dto.dart';
 export 'src/api/mappers/balance_mapper.dart';

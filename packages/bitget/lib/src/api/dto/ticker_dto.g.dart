@@ -6,11 +6,16 @@ part of 'ticker_dto.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-TickerDto _$TickerDtoFromJson(Map<String, dynamic> json) =>
-    $checkedCreate('TickerDto', json, ($checkedConvert) {
-      final val = TickerDto(
-        instId: $checkedConvert('instId', (v) => v as String? ?? ''),
-        markPrice: $checkedConvert('markPrice', (v) => v as String?),
-      );
-      return val;
-    });
+TickerDto _$TickerDtoFromJson(Map<String, dynamic> json) => $checkedCreate(
+  'TickerDto',
+  json,
+  ($checkedConvert) {
+    final val = TickerDto(
+      instId: $checkedConvert('instId', (v) => v as String? ?? ''),
+      markPrice: $checkedConvert('markPrice', (v) => v as String?),
+      fundingRate: $checkedConvert('fundingRate', (v) => v as String?),
+      nextFundingTime: $checkedConvert('nextFundingTime', (v) => v as String?),
+    );
+    return val;
+  },
+);

@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:network/network.dart';
 
 import 'dto/balance_dto.dart';
+import 'dto/contract_dto.dart';
 import 'dto/position_close_dto.dart';
 import 'dto/position_dto.dart';
 import 'dto/unified_account_dto.dart';
@@ -45,6 +46,27 @@ class GateAccountApi {
       (data) {
         try {
           return Ok(UnifiedAccountDto.fromJson(data));
+        } on Object catch (error) {
+          return Err(error);
+        }
+      },
+      (error) => Err(error),
+    );
+  }
+
+  /// Public contract specs. One call covers every contract, so the repository
+  /// reads the whole list rather than one request per open position.
+  Future<Result<List<ContractDto>, Object>> fetchContracts() async {
+    final response = await _client.get<List<Object?>>('$_base/contracts');
+
+    return response.fold<Result<List<ContractDto>, Object>>(
+      (data) {
+        try {
+          return Ok(
+            data
+                .map((e) => ContractDto.fromJson(e! as Map<String, Object?>))
+                .toList(),
+          );
         } on Object catch (error) {
           return Err(error);
         }

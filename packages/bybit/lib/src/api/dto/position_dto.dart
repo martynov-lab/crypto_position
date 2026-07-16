@@ -27,6 +27,11 @@ class PositionDto {
   @JsonKey(defaultValue: 0)
   final int positionIdx;
 
+  /// Epoch milliseconds the position was opened, as a string. Anchors the
+  /// fee/funding window.
+  @JsonKey(defaultValue: '')
+  final String createdTime;
+
   const PositionDto({
     required this.symbol,
     required this.side,
@@ -37,6 +42,7 @@ class PositionDto {
     required this.unrealisedPnl,
     required this.leverage,
     required this.positionIdx,
+    required this.createdTime,
   });
 
   factory PositionDto.fromJson(Map<String, Object?> json) =>

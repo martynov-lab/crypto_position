@@ -100,17 +100,19 @@ class MexcAccountRepository implements ExchangeAccountRepository {
     });
   }
 
+  /// Seeds mark price and funding rate from the public tickers, then reads the
+  /// settlement schedule the tickers do not carry.
   Future<void> _seedMarkPrices() async {
     final result = await _api.fetchTickers();
     result.fold(
       (tickers) {
         for (final ticker in tickers) {
-          final mark = ticker.fairPrice;
-          if (mark != null) _applyMarkPrice(ticker.symbol, mark.toDouble());
+          _applyTicker(ticker.symbol, ticker.fairPrice, ticker.fundingRate);
         }
       },
       (_) {},
     );
+    await _applyFundingSchedule();
   }
 
   Future<void> _ensureContractSizes() async {
@@ -139,11 +141,18 @@ class MexcAccountRepository implements ExchangeAccountRepository {
       final markPrice = current != null && current.markPrice > 0
           ? current.markPrice
           : model.markPrice;
-      _positionsByKey[key] = model.copyWith(
+      // The position channel carries no funding rate or schedule, so keep what
+      // the ticker and the funding-rate endpoint already established.
+      final merged = model.copyWith(
         markPrice: markPrice,
         unrealisedPnl: markPrice > 0
             ? _pnl(model.side, model.size, model.avgPrice, markPrice)
             : model.unrealisedPnl,
+        fundingRate: model.fundingRate ?? current?.fundingRate,
+        nextFundingTime: model.nextFundingTime ?? current?.nextFundingTime,
+      );
+      _positionsByKey[key] = merged.copyWith(
+        upcomingFundingUsd: _upcomingFunding(merged),
       );
     }
     _publishPositions();
@@ -160,10 +169,7 @@ class MexcAccountRepository implements ExchangeAccountRepository {
     for (final symbol in openSymbols) {
       if (_tickerSubs.containsKey(symbol)) continue;
       _tickerSubs[symbol] = tickerSubscriptions.subscribe(symbol).listen(
-        (dto) {
-          final mark = dto.fairPrice;
-          if (mark != null) _applyMarkPrice(dto.symbol, mark.toDouble());
-        },
+        (dto) => _applyTicker(dto.symbol, dto.fairPrice, dto.fundingRate),
       );
     }
 
@@ -174,19 +180,68 @@ class MexcAccountRepository implements ExchangeAccountRepository {
     }
   }
 
-  void _applyMarkPrice(String symbol, double markPrice) {
+  /// Re-prices open positions on the symbol and refreshes their funding rate.
+  /// A tick may carry either field alone, so each is applied independently.
+  void _applyTicker(String symbol, num? fairPrice, num? fundingRate) {
+    if (fairPrice == null && fundingRate == null) return;
+
     var changed = false;
     for (final entry in _positionsByKey.entries.toList()) {
       final position = entry.value;
       if (position.symbol != symbol) continue;
-      _positionsByKey[entry.key] = position.copyWith(
-        markPrice: markPrice,
-        unrealisedPnl:
-            _pnl(position.side, position.size, position.avgPrice, markPrice),
+
+      final mark = fairPrice?.toDouble() ?? position.markPrice;
+      final repriced = position.copyWith(
+        markPrice: mark,
+        unrealisedPnl: mark > 0
+            ? _pnl(position.side, position.size, position.avgPrice, mark)
+            : position.unrealisedPnl,
+        fundingRate: fundingRate?.toDouble() ?? position.fundingRate,
+      );
+      _positionsByKey[entry.key] = repriced.copyWith(
+        upcomingFundingUsd: _upcomingFunding(repriced),
       );
       changed = true;
     }
     if (changed) _publishPositions();
+  }
+
+  /// Fills in each position's next settlement time, which MEXC publishes only
+  /// on the per-symbol funding-rate endpoint. One request per open symbol.
+  ///
+  /// Best-effort: on failure the time stays null and renders as unknown.
+  Future<void> _applyFundingSchedule() async {
+    final openSymbols =
+        _positionsByKey.values.map((position) => position.symbol).toSet();
+
+    for (final symbol in openSymbols) {
+      final result = await _api.fetchFundingRate(symbol);
+      if (result case Ok(:final value)) {
+        final ms = value.nextSettleTime?.toInt();
+        if (ms == null || ms <= 0) continue;
+
+        var changed = false;
+        for (final entry in _positionsByKey.entries.toList()) {
+          final position = entry.value;
+          if (position.symbol != symbol) continue;
+          _positionsByKey[entry.key] = position.copyWith(
+            nextFundingTime: DateTime.fromMillisecondsSinceEpoch(ms),
+          );
+          changed = true;
+        }
+        if (changed) _publishPositions();
+      }
+    }
+  }
+
+  /// Funding due at the next settlement, signed from the account's point of
+  /// view: on a positive rate a long pays and a short receives.
+  static double? _upcomingFunding(PositionModel position) {
+    final rate = position.fundingRate;
+    if (rate == null || position.markPrice <= 0) return null;
+
+    final amount = position.notional * rate;
+    return position.side == 'short' ? amount : -amount;
   }
 
   void _publishPositions() {

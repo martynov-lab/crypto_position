@@ -24,6 +24,7 @@ PositionDto _$PositionDtoFromJson(Map<String, dynamic> json) =>
           'positionIdx',
           (v) => (v as num?)?.toInt() ?? 0,
         ),
+        createdTime: $checkedConvert('createdTime', (v) => v as String? ?? ''),
       );
       return val;
     });

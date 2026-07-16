@@ -16,6 +16,9 @@ PositionDto _$PositionDtoFromJson(Map<String, dynamic> json) =>
         markPx: $checkedConvert('markPx', (v) => v as String? ?? '0'),
         upl: $checkedConvert('upl', (v) => v as String? ?? '0'),
         lever: $checkedConvert('lever', (v) => v as String? ?? '0'),
+        fee: $checkedConvert('fee', (v) => v as String? ?? ''),
+        fundingFee: $checkedConvert('fundingFee', (v) => v as String? ?? ''),
+        cTime: $checkedConvert('cTime', (v) => v as String? ?? ''),
       );
       return val;
     });
