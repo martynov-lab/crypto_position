@@ -9,18 +9,66 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 
-class ArbitrageCalculator
-    extends ElementaryWidget<ArbitrageCalculatorWm> {
+class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
   ArbitrageCalculator({super.key})
     : super((context) => arbitrageCalculatorWmFactory(context: context));
 
   @override
   Widget build(ArbitrageCalculatorWm wm) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 700),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide (desktop): settings on the left, live chart on the right.
+        final wide = constraints.maxWidth >= 900;
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: wide ? 1150 : 700),
+              child: wide ? _WideLayout(wm: wm) : _NarrowLayout(wm: wm),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NarrowLayout extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _NarrowLayout({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CoinSearch(wm: wm),
+        const SizedBox(height: 16),
+        _ExchangePickers(wm: wm),
+        const SizedBox(height: 16),
+        _LiveSection(wm: wm, chartHeight: 300),
+        const SizedBox(height: 16),
+        _Inputs(wm: wm),
+        const SizedBox(height: 16),
+        _CalcButton(wm: wm),
+        const SizedBox(height: 16),
+        _Results(wm: wm),
+      ],
+    );
+  }
+}
+
+class _WideLayout extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _WideLayout({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 4,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -28,20 +76,33 @@ class ArbitrageCalculator
               const SizedBox(height: 16),
               _ExchangePickers(wm: wm),
               const SizedBox(height: 16),
-              _LiveSection(wm: wm),
-              const SizedBox(height: 16),
               _Inputs(wm: wm),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: AppButton(onPressed: wm.calculate, label: 'Рассчитать'),
-              ),
+              _CalcButton(wm: wm),
               const SizedBox(height: 16),
               _Results(wm: wm),
             ],
           ),
         ),
-      ),
+        const SizedBox(width: 24),
+        Expanded(
+          flex: 6,
+          child: _LiveSection(wm: wm, chartHeight: 460),
+        ),
+      ],
+    );
+  }
+}
+
+class _CalcButton extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _CalcButton({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: AppButton(onPressed: wm.calculate, label: 'Рассчитать'),
     );
   }
 }
@@ -171,8 +232,10 @@ class _ExchangeDropdown extends StatelessWidget {
           decoration: InputDecoration(
             labelText: label,
             border: const OutlineInputBorder(),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 4,
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<ExchangeId>(
@@ -204,7 +267,8 @@ class _ExchangeDropdown extends StatelessWidget {
 
 class _LiveSection extends StatelessWidget {
   final ArbitrageCalculatorWm wm;
-  const _LiveSection({required this.wm});
+  final double chartHeight;
+  const _LiveSection({required this.wm, required this.chartHeight});
 
   @override
   Widget build(BuildContext context) {
@@ -222,19 +286,46 @@ class _LiveSection extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: _PriceTile(wm: wm, exchange: e1, leg: 1)),
-                    Expanded(child: _PriceTile(wm: wm, exchange: e2, leg: 2)),
+                    Expanded(
+                      child: _PriceTile(wm: wm, exchange: e1, leg: 1),
+                    ),
+                    Expanded(
+                      child: _PriceTile(wm: wm, exchange: e2, leg: 2),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 _SpreadHeader(wm: wm),
                 const SizedBox(height: 8),
+                _TimeframeSelector(wm: wm),
+                const SizedBox(height: 8),
                 SizedBox(
-                  height: 200,
-                  child: ValueListenableBuilder<List<SpreadSample>>(
-                    valueListenable: wm.spreadSeries,
-                    builder: (context, series, _) =>
-                        SpreadLineChart(series: series),
+                  height: chartHeight,
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([
+                      wm.spreadSeries,
+                      wm.timeframeMin,
+                      wm.quote1,
+                      wm.quote2,
+                    ]),
+                    builder: (context, _) {
+                      final q1 = wm.quote1.value;
+                      final q2 = wm.quote2.value;
+                      String? buyLabel;
+                      String? sellLabel;
+                      if (q1 != null && q2 != null && q1.mid != q2.mid) {
+                        // Buy (long) the cheaper leg, sell (short) the dearer.
+                        final e1Cheaper = q1.mid < q2.mid;
+                        buyLabel = (e1Cheaper ? e1 : e2).label;
+                        sellLabel = (e1Cheaper ? e2 : e1).label;
+                      }
+                      return SpreadLineChart(
+                        series: wm.spreadSeries.value,
+                        timeframeMin: wm.timeframeMin.value,
+                        buyLabel: buyLabel,
+                        sellLabel: sellLabel,
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -253,7 +344,11 @@ class _PriceTile extends StatelessWidget {
   final ArbitrageCalculatorWm wm;
   final ExchangeId exchange;
   final int leg;
-  const _PriceTile({required this.wm, required this.exchange, required this.leg});
+  const _PriceTile({
+    required this.wm,
+    required this.exchange,
+    required this.leg,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -295,11 +390,39 @@ class _SpreadHeader extends StatelessWidget {
             Text(
               spread == null ? '—' : '${spread.toStringAsFixed(3)}%',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: spread == null
-                        ? null
-                        : (spread >= 0 ? Colors.green : Colors.red),
-                  ),
+                color: spread == null
+                    ? null
+                    : (spread >= 0 ? Colors.green : Colors.red),
+              ),
             ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimeframeSelector extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _TimeframeSelector({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: wm.timeframeMin,
+      builder: (context, selected, _) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            for (final m in kTimeframesMin)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: ChoiceChip(
+                  label: Text(m == 0 ? 'Тики' : '$mм'),
+                  selected: m == selected,
+                  onSelected: (_) => wm.setTimeframe(m),
+                ),
+              ),
           ],
         );
       },
@@ -395,12 +518,16 @@ class _LeverageSlider extends StatelessWidget {
     return ValueListenableBuilder<double>(
       valueListenable: wm.leverage,
       builder: (context, lev, _) {
-        final index = kLeverageSteps.indexOf(lev).clamp(0, kLeverageSteps.length - 1);
+        final index = kLeverageSteps
+            .indexOf(lev)
+            .clamp(0, kLeverageSteps.length - 1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Плечо: ${lev.toStringAsFixed(0)}x',
-                style: Theme.of(context).textTheme.labelLarge),
+            Text(
+              'Плечо: ${lev.toStringAsFixed(0)}x',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
             Slider(
               value: index.toDouble(),
               min: 0,
@@ -454,13 +581,26 @@ class _Results extends StatelessWidget {
                 _row(context, 'Комиссии', '-${_fmtUsd(r.feesUsd)}'),
                 _row(context, 'Фандинг за период', _fmtUsd(r.fundingUsd)),
                 const Divider(),
-                _row(context, 'Чистый профит', _fmtUsd(r.netUsd),
-                    color: profitColor, bold: true),
-                _row(context, 'Доходность на капитал',
-                    '${r.netReturnPct.toStringAsFixed(2)}%',
-                    color: profitColor),
-                _row(context, 'APR', '${r.aprPct.toStringAsFixed(1)}%',
-                    color: profitColor, bold: true),
+                _row(
+                  context,
+                  'Чистый профит',
+                  _fmtUsd(r.netUsd),
+                  color: profitColor,
+                  bold: true,
+                ),
+                _row(
+                  context,
+                  'Доходность на капитал',
+                  '${r.netReturnPct.toStringAsFixed(2)}%',
+                  color: profitColor,
+                ),
+                _row(
+                  context,
+                  'APR',
+                  '${r.aprPct.toStringAsFixed(1)}%',
+                  color: profitColor,
+                  bold: true,
+                ),
               ],
             ),
           ),
@@ -469,12 +609,17 @@ class _Results extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value,
-      {Color? color, bool bold = false}) {
+  Widget _row(
+    BuildContext context,
+    String label,
+    String value, {
+    Color? color,
+    bool bold = false,
+  }) {
     final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: color,
-          fontWeight: bold ? FontWeight.bold : null,
-        );
+      color: color,
+      fontWeight: bold ? FontWeight.bold : null,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -495,10 +640,7 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(text),
-      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: Text(text)),
     );
   }
 }

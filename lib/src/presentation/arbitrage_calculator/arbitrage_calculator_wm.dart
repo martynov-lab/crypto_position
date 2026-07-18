@@ -20,14 +20,22 @@ class SpreadSample {
 }
 
 /// Available leverage steps for the slider.
-const kLeverageSteps = <double>[3, 5, 10, 15, 20, 25];
+const kLeverageSteps = <double>[1, 3, 5, 10, 15, 20, 25];
 
-/// Live-data poll cadence and how long a spread trace is kept.
+/// Selectable chart timeframes, in minutes (bucket size per plotted point).
+/// `0` means raw ticks (one point per 2s sample, no bucketing).
+const kTimeframesMin = <int>[0, 1, 5, 15];
+
+/// Live-data poll cadence and how many raw samples are retained.
 const _pollInterval = Duration(seconds: 2);
-const _chartWindow = Duration(minutes: 10);
+
+/// Cap on retained raw (2s) samples (~3h). Bounds memory; the display buckets
+/// these by the selected timeframe, so history survives timeframe switches.
+const _maxSamples = 5400;
 
 class ArbitrageCalculatorWm
-    extends WidgetModel<ArbitrageCalculator, ArbitrageCalculatorModel> {
+    extends WidgetModel<ArbitrageCalculator, ArbitrageCalculatorModel>
+    with WidgetsBindingObserver {
   final MarketDataRegistry _registry;
   final FeeSettingsStore _feeStore;
 
@@ -40,13 +48,14 @@ class ArbitrageCalculatorWm
 
   // Inputs.
   final searchController = TextEditingController();
-  final capital1Controller = TextEditingController();
-  final capital2Controller = TextEditingController();
-  final holdingHoursController = TextEditingController(text: '8');
+  final capital1Controller = TextEditingController(text: '100');
+  final capital2Controller = TextEditingController(text: '100');
+  final holdingHoursController = TextEditingController(text: '1');
   final entrySpreadController = TextEditingController();
   final exitSpreadController = TextEditingController();
 
   final _leverage = ValueNotifier<double>(5);
+  final _timeframeMin = ValueNotifier<int>(kTimeframesMin.first);
 
   // Catalog: per-exchange base -> instrument, and base -> covering exchanges.
   final _byExchange = <ExchangeId, Map<String, PerpInstrument>>{};
@@ -75,6 +84,7 @@ class ArbitrageCalculatorWm
 
   // Exposed listenables.
   ValueListenable<double> get leverage => _leverage;
+  ValueListenable<int> get timeframeMin => _timeframeMin;
   ValueListenable<String?> get selectedBase => _selectedBase;
   ValueListenable<ExchangeId?> get exchange1 => _exchange1;
   ValueListenable<ExchangeId?> get exchange2 => _exchange2;
@@ -109,13 +119,36 @@ class ArbitrageCalculatorWm
   @override
   void initWidgetModel() {
     super.initWidgetModel();
+    WidgetsBinding.instance.addObserver(this);
     searchController.addListener(_recomputeCandidates);
     _registry.connectedListenable.addListener(_loadCatalog);
     _loadCatalog();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // Returning to the foreground: timers don't fire while suspended, so
+        // restart polling (without wiping the accumulated chart history) to
+        // recover the data connection.
+        if (_hasValidSelection &&
+            (_pollTimer == null || !_pollTimer!.isActive)) {
+          _startTimer();
+        }
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _pollTimer?.cancel();
+        _pollTimer = null;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _registry.connectedListenable.removeListener(_loadCatalog);
     searchController.removeListener(_recomputeCandidates);
@@ -126,6 +159,7 @@ class ArbitrageCalculatorWm
     entrySpreadController.dispose();
     exitSpreadController.dispose();
     _leverage.dispose();
+    _timeframeMin.dispose();
     _selectedBase.dispose();
     _exchange1.dispose();
     _exchange2.dispose();
@@ -142,6 +176,9 @@ class ArbitrageCalculatorWm
   }
 
   void setLeverage(double value) => _leverage.value = value;
+
+  /// Switch the chart timeframe. History is kept — the display just re-buckets.
+  void setTimeframe(int minutes) => _timeframeMin.value = minutes;
 
   void selectBase(String base) {
     _selectedBase.value = base;
@@ -208,6 +245,14 @@ class ArbitrageCalculatorWm
     _candidates.value = matches.take(30).toList();
   }
 
+  bool get _hasValidSelection {
+    final base = _selectedBase.value;
+    final e1 = _exchange1.value;
+    final e2 = _exchange2.value;
+    return base != null && e1 != null && e2 != null && e1 != e2;
+  }
+
+  /// Selection changed: wipe the live data and start a fresh trace.
   void _restartPolling() {
     _pollTimer?.cancel();
     _quote1.value = null;
@@ -218,11 +263,14 @@ class ArbitrageCalculatorWm
     _result.value = null;
     _dataError.value = null;
 
-    final base = _selectedBase.value;
-    final e1 = _exchange1.value;
-    final e2 = _exchange2.value;
-    if (base == null || e1 == null || e2 == null || e1 == e2) return;
+    if (!_hasValidSelection) return;
+    _startTimer();
+  }
 
+  /// Kick off an immediate poll and the periodic timer, keeping any existing
+  /// chart history intact (used on start and on foreground resume).
+  void _startTimer() {
+    _pollTimer?.cancel();
     final gen = ++_pollGen;
     unawaited(_poll(gen));
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll(gen));
@@ -258,11 +306,14 @@ class ArbitrageCalculatorWm
       if (q1.mid > 0) {
         final spreadPct = (q2.mid - q1.mid) / q1.mid * 100;
         final now = DateTime.now().millisecondsSinceEpoch;
-        final cutoff = now - _chartWindow.inMilliseconds;
-        _spreadSeries.value = [
-          ..._spreadSeries.value.where((s) => s.tsMs >= cutoff),
+        final list = [
+          ..._spreadSeries.value,
           SpreadSample(now, spreadPct),
         ];
+        if (list.length > _maxSamples) {
+          list.removeRange(0, list.length - _maxSamples);
+        }
+        _spreadSeries.value = list;
       }
     } on Object catch (e) {
       if (gen != _pollGen) return;
