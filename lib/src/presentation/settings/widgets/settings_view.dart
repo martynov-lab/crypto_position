@@ -55,17 +55,39 @@ class SettingsView extends StatelessWidget {
 
   Widget _buildThemeCard(BuildContext context) {
     final themeNotifier = context.watch<ThemeNotifier>();
-    final isDark =
-        themeNotifier.mode == ThemeMode.dark ||
-        (themeNotifier.mode == ThemeMode.system &&
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
     return Card(
-      child: SwitchListTile(
-        secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-        title: const Text('Тёмная тема'),
-        value: isDark,
-        onChanged: (_) => themeNotifier.toggle(),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Тема', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.system,
+                  label: Text('Системная'),
+                  icon: Icon(Icons.brightness_auto),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('Светлая'),
+                  icon: Icon(Icons.light_mode),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('Тёмная'),
+                  icon: Icon(Icons.dark_mode),
+                ),
+              ],
+              selected: {themeNotifier.mode},
+              onSelectionChanged: (selection) =>
+                  themeNotifier.setMode(selection.first),
+            ),
+          ],
+        ),
       ),
     );
   }

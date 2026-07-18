@@ -20,6 +20,7 @@ class CryptoApp extends ElementaryWidget<CryptoAppWm> {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeNotifier.mode,
+          themeAnimationDuration: Duration.zero,
         );
       },
     );
