@@ -1,3 +1,5 @@
+import 'package:crypto_position/src/fees/fee_settings_store.dart';
+import 'package:crypto_position/src/market_data/exchange_id.dart';
 import 'package:crypto_position/src/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -41,6 +43,8 @@ class SettingsView extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         _buildThemeCard(context),
+        const SizedBox(height: 8),
+        const _FeeSettingsCard(),
         for (final connection in connections) ...[
           const SizedBox(height: 8),
           _ApiConnectionCard(connection: connection),
@@ -63,6 +67,80 @@ class SettingsView extends StatelessWidget {
         value: isDark,
         onChanged: (_) => themeNotifier.toggle(),
       ),
+    );
+  }
+}
+
+/// Editable maker-fee (%) per exchange, used by the arbitrage calculator.
+class _FeeSettingsCard extends StatelessWidget {
+  const _FeeSettingsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.read<FeeSettingsStore>();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Комиссии maker (%)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            for (final exchange in ExchangeId.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _FeeRow(store: store, exchange: exchange),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeeRow extends StatefulWidget {
+  final FeeSettingsStore store;
+  final ExchangeId exchange;
+
+  const _FeeRow({required this.store, required this.exchange});
+
+  @override
+  State<_FeeRow> createState() => _FeeRowState();
+}
+
+class _FeeRowState extends State<_FeeRow> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.store.makerPct(widget.exchange).toString(),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 90, child: Text(widget.exchange.label)),
+        Expanded(
+          child: AppTextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            labelText: 'maker %',
+            onChanged: (value) {
+              final pct = double.tryParse(value);
+              if (pct != null) {
+                widget.store.setMakerPct(widget.exchange, pct);
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 }

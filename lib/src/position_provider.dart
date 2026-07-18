@@ -12,6 +12,15 @@ import 'package:crypto_position/src/okx_account_repository_factory.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:gate/gate.dart';
 import 'package:mexc/mexc.dart';
+import 'package:crypto_position/src/fees/fee_settings_store.dart';
+import 'package:crypto_position/src/market_data/bitget_market_data.dart';
+import 'package:crypto_position/src/market_data/bybit_market_data.dart';
+import 'package:crypto_position/src/market_data/exchange_id.dart';
+import 'package:crypto_position/src/market_data/gate_market_data.dart';
+import 'package:crypto_position/src/market_data/market_data_provider.dart';
+import 'package:crypto_position/src/market_data/market_data_registry.dart';
+import 'package:crypto_position/src/market_data/mexc_market_data.dart';
+import 'package:crypto_position/src/market_data/okx_market_data.dart';
 import 'package:crypto_position/src/screener_service.dart';
 import 'package:network/network.dart';
 import 'package:okx/okx.dart';
@@ -114,6 +123,30 @@ class PositionProvider extends StatelessWidget {
       Provider<ScreenerService>(
         create: (_) => ScreenerService(),
         dispose: (_, value) => value.dispose(),
+      ),
+      ChangeNotifierProvider<FeeSettingsStore>(
+        create: (context) =>
+            FeeSettingsStore(context.read<SharedPreferencesHelper>())..load(),
+      ),
+      Provider<MarketDataRegistry>(
+        create: (context) => MarketDataRegistry(
+          providers: <ExchangeId, MarketDataProvider>{
+            ExchangeId.bybit: BybitMarketData(),
+            ExchangeId.okx: OkxMarketData(),
+            ExchangeId.bitget: BitgetMarketData(),
+            ExchangeId.gate: GateMarketData(),
+            ExchangeId.mexc: MexcMarketData(),
+          },
+          connectedFlags: {
+            ExchangeId.bybit:
+                context.read<BybitSessionService>().hasCredentials,
+            ExchangeId.okx: context.read<OkxSessionService>().hasCredentials,
+            ExchangeId.bitget:
+                context.read<BitgetSessionService>().hasCredentials,
+            ExchangeId.gate: context.read<GateSessionService>().hasCredentials,
+            ExchangeId.mexc: context.read<MexcSessionService>().hasCredentials,
+          },
+        ),
       ),
     ],
     child: child,

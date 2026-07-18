@@ -55,19 +55,13 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
         _buildField('Цена входа', wm.entryController),
         _buildField('Стоп-лосс', wm.stopController),
         _buildField('Комиссия открытия (%)', wm.openCommissionController),
-        _buildField(
-          'Комиссия закрытия (%)',
-          wm.closeCommissionController,
-        ),
+        _buildField('Комиссия закрытия (%)', wm.closeCommissionController),
         const SizedBox(height: 16),
         _buildTakeProfitsSection(wm),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
-          child: AppButton(
-            onPressed: wm.calculate,
-            label: 'Рассчитать',
-          ),
+          child: AppButton(onPressed: wm.calculate, label: 'Рассчитать'),
         ),
       ],
     );
@@ -108,18 +102,13 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
                 ListTile(
                   title: Text('Прибыль TP ${i + 1}'),
                   trailing: Text(
-                    profits[i] == null
-                        ? '-'
-                        : profits[i]!.toStringAsFixed(2),
+                    profits[i] == null ? '-' : profits[i]!.toStringAsFixed(2),
                   ),
                 ),
             ],
           ),
         ),
-        ResultTile(
-          listenable: wm.profitUsd,
-          title: 'Общая прибыль',
-        ),
+        ResultTile(listenable: wm.profitUsd, title: 'Общая прибыль'),
         ResultTile(listenable: wm.rr, title: 'Risk / Reward'),
       ],
     );

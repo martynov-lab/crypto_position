@@ -1,7 +1,7 @@
 import 'package:crypto_position/src/components/scaffold_with_nav_bar.dart';
 import 'package:crypto_position/src/presentation/home/home_screen.dart';
+import 'package:crypto_position/src/presentation/calculator/calculator_screen.dart';
 import 'package:crypto_position/src/presentation/journal/journal_screen.dart';
-import 'package:crypto_position/src/presentation/position_calculator/position_calculator.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_screen.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen.dart';
 import 'package:crypto_position/src/presentation/settings/settings_screen.dart';
@@ -37,7 +37,7 @@ GoRouter get router => GoRouter(
             GoRoute(
               path: '/calculator',
               builder: (BuildContext context, GoRouterState state) {
-                return PositionCalculator();
+                return const CalculatorScreen();
               },
             ),
           ],
