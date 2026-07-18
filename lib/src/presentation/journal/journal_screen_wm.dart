@@ -7,6 +7,7 @@ import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/journal/exchange_journal.dart';
 import 'package:crypto_position/src/presentation/journal/journal_screen.dart';
 import 'package:crypto_position/src/presentation/journal/journal_screen_model.dart';
+import 'package:crypto_position/src/presentation/journal/monthly_pnl_summary.dart';
 import 'package:elementary/elementary.dart';
 import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
@@ -34,6 +35,31 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
   ValueListenable<bool> get gateHasCredentials => _gate.hasCredentials;
   ValueListenable<bool> get mexcHasCredentials => _mexc.hasCredentials;
 
+  late final List<ExchangeJournal> _journals = [
+    bybitJournal,
+    okxJournal,
+    bitgetJournal,
+    gateJournal,
+    mexcJournal,
+  ];
+
+  /// The month shared by every tab's calendar and the summary card; changing it
+  /// from any calendar (via [changeMonth]) moves them all together.
+  DateTime _selectedMonth = _thisMonth();
+
+  /// Realized PnL for [_selectedMonth], summed across every connected exchange's
+  /// loaded closed trades. Shown above the tab bar; recomputed whenever a
+  /// journal reloads.
+  final _monthlyPnl = ValueNotifier<MonthlyPnlSummary>(
+    MonthlyPnlSummary(month: _thisMonth()),
+  );
+  ValueListenable<MonthlyPnlSummary> get monthlyPnl => _monthlyPnl;
+
+  static DateTime _thisMonth() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
+  }
+
   JournalScreenWm(
     super.model, {
     required BybitSessionService bybit,
@@ -55,11 +81,16 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
     _bitget.session.addListener(_onBitgetSessionChanged);
     _gate.session.addListener(_onGateSessionChanged);
     _mexc.session.addListener(_onMexcSessionChanged);
+    for (final journal in _journals) {
+      journal.trades.addListener(_recomputePnl);
+      journal.loading.addListener(_recomputePnl);
+    }
     if (_bybit.session.value != null) bybitJournal.load();
     if (_okx.session.value != null) okxJournal.load();
     if (_bitget.session.value != null) bitgetJournal.load();
     if (_gate.session.value != null) gateJournal.load();
     if (_mexc.session.value != null) mexcJournal.load();
+    _recomputePnl();
   }
 
   @override
@@ -69,12 +100,59 @@ class JournalScreenWm extends WidgetModel<JournalScreen, JournalScreenModel> {
     _bitget.session.removeListener(_onBitgetSessionChanged);
     _gate.session.removeListener(_onGateSessionChanged);
     _mexc.session.removeListener(_onMexcSessionChanged);
+    for (final journal in _journals) {
+      journal.trades.removeListener(_recomputePnl);
+      journal.loading.removeListener(_recomputePnl);
+    }
+    _monthlyPnl.dispose();
     bybitJournal.dispose();
     okxJournal.dispose();
     bitgetJournal.dispose();
     gateJournal.dispose();
     mexcJournal.dispose();
     super.dispose();
+  }
+
+  int get _connectedCount => [
+        _bybit.session.value,
+        _okx.session.value,
+        _bitget.session.value,
+        _gate.session.value,
+        _mexc.session.value,
+      ].where((session) => session != null).length;
+
+  /// Moves every tab's calendar and the summary card to [month] and reloads,
+  /// so the whole screen stays on one month. Called from any tab's calendar.
+  void changeMonth(DateTime month) {
+    _selectedMonth = DateTime(month.year, month.month);
+    for (final journal in _journals) {
+      journal.changeMonth(_selectedMonth);
+    }
+    _recomputePnl();
+  }
+
+  /// Sums the realized PnL of the closed trades already loaded by each journal
+  /// for [_selectedMonth]. A dash (null) shows only when nothing is connected.
+  void _recomputePnl() {
+    if (_connectedCount == 0) {
+      _monthlyPnl.value = MonthlyPnlSummary(month: _selectedMonth);
+      return;
+    }
+    final loading = _journals.any((journal) => journal.loading.value);
+    final total = _journals.fold<double>(
+      0,
+      (sum, journal) =>
+          sum +
+          journal.trades.value.fold<double>(
+            0,
+            (tradeSum, trade) => tradeSum + trade.closedPnl,
+          ),
+    );
+    _monthlyPnl.value = MonthlyPnlSummary(
+      month: _selectedMonth,
+      pnl: total,
+      loading: loading,
+    );
   }
 
   void _onBybitSessionChanged() {

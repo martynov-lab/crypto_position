@@ -12,10 +12,15 @@ class ExchangeJournalView extends StatelessWidget {
   final ExchangeJournal journal;
   final ValueListenable<bool> hasCredentials;
 
+  /// Changes the month for the whole screen (every tab and the summary card),
+  /// not just this journal, so they stay in sync.
+  final ValueChanged<DateTime> onMonthChanged;
+
   const ExchangeJournalView({
     super.key,
     required this.journal,
     required this.hasCredentials,
+    required this.onMonthChanged,
   });
 
   @override
@@ -77,7 +82,7 @@ class ExchangeJournalView extends StatelessWidget {
                 dailyTradeCount: journal.dailyTradeCount,
                 selectedDay: selectedDay,
                 onDayTap: (day) => journal.selectDay(day),
-                onMonthChanged: journal.changeMonth,
+                onMonthChanged: onMonthChanged,
               );
             },
           ),
@@ -106,7 +111,7 @@ class ExchangeJournalView extends StatelessWidget {
                     dailyTradeCount: journal.dailyTradeCount,
                     selectedDay: null,
                     onDayTap: (_) {},
-                    onMonthChanged: journal.changeMonth,
+                    onMonthChanged: onMonthChanged,
                   ),
                 );
               },

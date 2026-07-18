@@ -148,20 +148,6 @@ class AllBalancesView extends StatelessWidget {
               _nextFundingLabel(position.nextFundingTime),
               position.upcomingFundingUsd,
             ),
-            const SizedBox(height: 4),
-            // Fees are reported as a positive charge; negate them so all three
-            // rows read on one axis, where negative is money out.
-            _buildDetailRow(
-              context,
-              _feesLabel('Комиссия уплачена', position),
-              position.paidCommission == null ? null : -position.paidCommission!,
-            ),
-            const SizedBox(height: 4),
-            _buildDetailRow(
-              context,
-              _feesLabel('Фандинг уплачен', position),
-              position.paidFunding,
-            ),
           ],
         ),
       ),
@@ -197,14 +183,6 @@ class AllBalancesView extends StatelessWidget {
       ],
     );
   }
-
-  /// Marks the row when the total covers only the lookback window instead of
-  /// the position's whole life, so a long-held position does not read as if it
-  /// had paid less than it did.
-  String _feesLabel(String label, PositionModel position) =>
-      position.hasPartialFees
-          ? '$label · за ${feesLookbackWindow.inDays} дн.'
-          : label;
 
   String _nextFundingLabel(DateTime? nextFundingTime) {
     if (nextFundingTime == null) return 'Следующий фандинг';

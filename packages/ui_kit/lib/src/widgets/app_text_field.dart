@@ -56,6 +56,15 @@ class AppTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasError = errorText != null && errorText!.isNotEmpty;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    final fillColor = isLight
+        ? AppColors.lightSurfaceVariant
+        : AppColors.surfaceVariant;
+    final subtleBorderColor = isLight
+        ? AppColors.lightBorder
+        : AppColors.borderSubtle;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,10 +78,10 @@ class AppTextField extends StatelessWidget {
                 Flexible(
                   child: Text(
                     labelText!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -96,16 +105,16 @@ class AppTextField extends StatelessWidget {
           readOnly: readOnly,
           maxLines: maxLines,
           textInputAction: textInputAction,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
-            color: AppColors.textPrimary,
+            color: colorScheme.onSurface,
           ),
           cursorColor: AppColors.info,
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: const TextStyle(
+            hintStyle: TextStyle(
               fontSize: 15,
-              color: AppColors.textTertiary,
+              color: colorScheme.onSurfaceVariant,
             ),
             prefixIcon: prefixIcon != null
                 ? Padding(
@@ -114,7 +123,7 @@ class AppTextField extends StatelessWidget {
                     ),
                     child: IconTheme(
                       data: IconThemeData(
-                        color: AppColors.textTertiary,
+                        color: colorScheme.onSurfaceVariant,
                         size: 20,
                       ),
                       child: prefixIcon!,
@@ -126,18 +135,18 @@ class AppTextField extends StatelessWidget {
                 : null,
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: AppColors.surfaceVariant,
+            fillColor: fillColor,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
               vertical: AppSpacing.sm,
             ),
             border: OutlineInputBorder(
               borderRadius: AppRadius.mediumRadius,
-              borderSide: BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: colorScheme.outline),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: AppRadius.mediumRadius,
-              borderSide: BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: colorScheme.outline),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: AppRadius.mediumRadius,
@@ -153,7 +162,7 @@ class AppTextField extends StatelessWidget {
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: AppRadius.mediumRadius,
-              borderSide: BorderSide(color: AppColors.borderSubtle),
+              borderSide: BorderSide(color: subtleBorderColor),
             ),
             errorText: null,
           ),
