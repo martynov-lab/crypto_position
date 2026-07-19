@@ -7,6 +7,11 @@ import 'package:network/network.dart';
 class OkxMarketData implements MarketDataProvider {
   final RestClient _client;
 
+  /// Contract value in base units per symbol (`ctVal`), harvested from the
+  /// instruments list. OKX books are sized in contracts, so [fetchOrderBook]
+  /// multiplies by this to report base units.
+  final _ctVal = <String, double>{};
+
   OkxMarketData({String baseUrl = 'https://www.okx.com'})
     : _client = publicRestClient(baseUrl);
 
@@ -24,12 +29,18 @@ class OkxMarketData implements MarketDataProvider {
       if (instId == null || uly == null) continue;
       final parts = uly.split('-');
       if (parts.length < 2) continue;
+      final ctVal = asDouble(row['ctVal']);
+      if (ctVal != null) _ctVal[instId] = ctVal;
       result.add(
         PerpInstrument(
           exchange: ExchangeId.okx,
           symbol: instId,
           base: parts[0],
           quote: parts[1],
+          qtyStep: asDouble(row['lotSz']),
+          minQty: asDouble(row['minSz']),
+          tickSize: asDouble(row['tickSz']),
+          contractSize: ctVal,
         ),
       );
     }
@@ -64,6 +75,37 @@ class OkxMarketData implements MarketDataProvider {
       intervalHours: intervalHours,
       nextFundingMs: next,
     );
+  }
+
+  @override
+  Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50}) async {
+    final rows = await _get('/api/v5/market/books', {
+      'instId': symbol,
+      'sz': depth,
+    });
+    if (rows.isEmpty) return const OrderBook(bids: [], asks: []);
+    final row = rows.first;
+    // OKX books are sized in contracts; convert to base units via ctVal.
+    final mult = _ctVal[symbol] ?? 1;
+    return OrderBook(
+      bids: _levels(row['bids'], mult),
+      asks: _levels(row['asks'], mult),
+    );
+  }
+
+  /// Parses OKX's `[[price, size, ...], ...]` book side, scaling size to base
+  /// units by [mult].
+  static List<BookLevel> _levels(Object? raw, double mult) {
+    if (raw is! List) return const [];
+    final out = <BookLevel>[];
+    for (final row in raw) {
+      if (row is! List || row.length < 2) continue;
+      final price = asDouble(row[0]);
+      final size = asDouble(row[1]);
+      if (price == null || size == null) continue;
+      out.add(BookLevel(price, size * mult));
+    }
+    return out;
   }
 
   Future<List<Map<String, Object?>>> _get(

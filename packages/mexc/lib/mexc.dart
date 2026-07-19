@@ -6,6 +6,7 @@ export 'src/api/dto/ticker_dto.dart';
 export 'src/api/mappers/balance_mapper.dart';
 export 'src/api/mappers/position_mapper.dart';
 export 'src/api/mexc_account_api.dart';
+export 'src/api/mexc_trade_executor.dart';
 export 'src/api/mexc_ws_auth.dart';
 export 'src/api/mexc_ws_protocol.dart';
 export 'src/api/position_subscriber.dart';

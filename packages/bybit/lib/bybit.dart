@@ -1,4 +1,5 @@
 export 'src/api/bybit_account_api.dart';
+export 'src/api/bybit_trade_executor.dart';
 export 'src/api/bybit_ws_auth.dart';
 export 'src/api/bybit_ws_protocol.dart';
 export 'src/api/dto/closed_pnl_dto.dart';

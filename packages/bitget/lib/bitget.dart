@@ -1,5 +1,6 @@
 export 'src/api/account_subscriber.dart';
 export 'src/api/bitget_account_api.dart';
+export 'src/api/bitget_trade_executor.dart';
 export 'src/api/bitget_ws_auth.dart';
 export 'src/api/bitget_ws_protocol.dart';
 export 'src/api/dto/balance_dto.dart';

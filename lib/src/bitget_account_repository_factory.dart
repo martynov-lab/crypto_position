@@ -55,13 +55,16 @@ class BitgetAccountRepositoryFactory {
       protocol: protocol,
     );
 
+    final restClient = RestClient(dio);
+
     return BitgetAccountSession(
       repository: BitgetAccountRepository(
-        bitgetAccountApi: BitgetAccountApi(RestClient(dio)),
+        bitgetAccountApi: BitgetAccountApi(restClient),
         accountSubscriber: accountSubscriber,
         positionSubscriber: positionSubscriber,
         tickerSubscriptions: tickerSubscriptions,
       ),
+      tradeExecutor: BitgetTradeExecutor(restClient),
       wsManager: wsManager,
       wsService: wsService,
       publicWsManager: publicWsManager,

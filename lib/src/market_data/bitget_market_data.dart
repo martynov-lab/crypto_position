@@ -31,12 +31,24 @@ class BitgetMarketData implements MarketDataProvider {
       if (symbol == null || base == null || quote == null) continue;
       final interval = asDouble(row['fundInterval']);
       if (interval != null) _intervalHours[symbol] = interval;
+      // Bitget reports price precision as decimal places + an end step; derive
+      // the absolute tick size from them (e.g. pricePlace 1, priceEndStep 5 =>
+      // 0.5).
+      final pricePlace = asInt(row['pricePlace']);
+      final priceEndStep = asDouble(row['priceEndStep']);
+      final tickSize = (pricePlace != null && priceEndStep != null)
+          ? priceEndStep / _pow10(pricePlace)
+          : null;
       result.add(
         PerpInstrument(
           exchange: ExchangeId.bitget,
           symbol: symbol,
           base: base,
           quote: quote,
+          qtyStep: asDouble(row['sizeMultiplier']),
+          minQty: asDouble(row['minTradeNum']),
+          tickSize: tickSize,
+          contractSize: 1,
         ),
       );
     }
@@ -79,6 +91,54 @@ class BitgetMarketData implements MarketDataProvider {
       intervalHours: period ?? _intervalHours[symbol] ?? 8,
       nextFundingMs: nextMs,
     );
+  }
+
+  @override
+  Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50}) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v2/mix/market/merge-depth',
+      queryParams: {
+        'symbol': symbol,
+        'productType': _productType,
+        'limit': '$depth',
+      },
+    );
+    return response.fold(
+      (data) {
+        final code = data['code'];
+        if (code is String && code != '00000') {
+          throw StateError('Bitget error $code: ${data['msg']}');
+        }
+        final book = data['data'] as Map<String, Object?>?;
+        return OrderBook(
+          bids: _levels(book?['bids']),
+          asks: _levels(book?['asks']),
+        );
+      },
+      (error) => throw error,
+    );
+  }
+
+  /// Parses Bitget's `[[price, size], ...]` book side into [BookLevel]s.
+  static List<BookLevel> _levels(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <BookLevel>[];
+    for (final row in raw) {
+      if (row is! List || row.length < 2) continue;
+      final price = asDouble(row[0]);
+      final size = asDouble(row[1]);
+      if (price == null || size == null) continue;
+      out.add(BookLevel(price, size));
+    }
+    return out;
+  }
+
+  static double _pow10(int n) {
+    var v = 1.0;
+    for (var i = 0; i < n; i++) {
+      v *= 10;
+    }
+    return v;
   }
 
   Future<List<Map<String, Object?>>> _get(

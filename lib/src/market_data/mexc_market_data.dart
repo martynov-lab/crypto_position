@@ -7,6 +7,11 @@ import 'package:network/network.dart';
 class MexcMarketData implements MarketDataProvider {
   final RestClient _client;
 
+  /// Base units per contract (`contractSize`) per symbol, harvested from the
+  /// contract detail list. MEXC books and order volumes are in contracts, so
+  /// [fetchOrderBook] multiplies by this to report base units.
+  final _contractSize = <String, double>{};
+
   MexcMarketData({String baseUrl = 'https://contract.mexc.com'})
     : _client = publicRestClient(baseUrl);
 
@@ -23,12 +28,21 @@ class MexcMarketData implements MarketDataProvider {
       final symbol = row['symbol'] as String?; // BTC_USDT
       final base = row['baseCoin'] as String?;
       if (symbol == null || base == null) continue;
+      final contractSize = asDouble(row['contractSize']);
+      if (contractSize != null && contractSize > 0) {
+        _contractSize[symbol] = contractSize;
+      }
       result.add(
         PerpInstrument(
           exchange: ExchangeId.mexc,
           symbol: symbol,
           base: base,
           quote: quote!,
+          // MEXC sizes orders in contracts (integer vol steps).
+          qtyStep: asDouble(row['volUnit']),
+          minQty: asDouble(row['minVol']),
+          tickSize: asDouble(row['priceUnit']),
+          contractSize: contractSize,
         ),
       );
     }
@@ -55,6 +69,34 @@ class MexcMarketData implements MarketDataProvider {
       intervalHours: cycleHours ?? 8,
       nextFundingMs: asInt(row['nextSettleTime']),
     );
+  }
+
+  @override
+  Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50}) async {
+    final data = await _getMap('/api/v1/contract/depth/$symbol', {
+      'limit': depth,
+    });
+    // MEXC books are sized in contracts; convert to base units.
+    final mult = _contractSize[symbol] ?? 1;
+    return OrderBook(
+      bids: _levels(data['bids'], mult),
+      asks: _levels(data['asks'], mult),
+    );
+  }
+
+  /// Parses MEXC's `[[price, vol, orderCount], ...]` book side, scaling
+  /// contract volume to base units by [mult].
+  static List<BookLevel> _levels(Object? raw, double mult) {
+    if (raw is! List) return const [];
+    final out = <BookLevel>[];
+    for (final row in raw) {
+      if (row is! List || row.length < 2) continue;
+      final price = asDouble(row[0]);
+      final size = asDouble(row[1]);
+      if (price == null || size == null) continue;
+      out.add(BookLevel(price, size * mult));
+    }
+    return out;
   }
 
   Future<List<Map<String, Object?>>> _getList(String path) async {

@@ -40,12 +40,15 @@ class GateAccountRepositoryFactory {
       protocol: protocol,
     );
 
+    final restClient = RestClient(dio);
+
     return GateAccountSession(
       repository: GateAccountRepository(
-        gateAccountApi: GateAccountApi(RestClient(dio)),
+        gateAccountApi: GateAccountApi(restClient),
         positionSubscriber: positionSubscriber,
         tickerSubscriptions: tickerSubscriptions,
       ),
+      tradeExecutor: GateTradeExecutor(restClient),
       wsManager: wsManager,
       protocol: protocol,
       wsService: wsService,

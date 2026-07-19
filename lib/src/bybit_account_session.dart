@@ -1,10 +1,14 @@
 import 'package:bybit/bybit.dart';
+import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
 
 /// Per-credentials Bybit connection graph: REST repository + WS managers
 /// (private account stream and public ticker stream).
 class BybitAccountSession {
   final BybitAccountRepository repository;
+
+  /// Order placement over the same signed REST client.
+  final TradeExecutor tradeExecutor;
   final WsManager wsManager;
   final WsManager publicWsManager;
   final WsService _wsService;
@@ -12,6 +16,7 @@ class BybitAccountSession {
 
   BybitAccountSession({
     required this.repository,
+    required this.tradeExecutor,
     required this.wsManager,
     required this.publicWsManager,
     required WsService wsService,

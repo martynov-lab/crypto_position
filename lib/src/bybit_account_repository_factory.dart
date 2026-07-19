@@ -51,13 +51,16 @@ class BybitAccountRepositoryFactory {
       protocol: protocol,
     );
 
+    final restClient = RestClient(dio);
+
     return BybitAccountSession(
       repository: BybitAccountRepository(
-        bybitAccountApi: BybitAccountApi(RestClient(dio)),
+        bybitAccountApi: BybitAccountApi(restClient),
         walletSubscriber: walletSubscriber,
         positionSubscriber: positionSubscriber,
         tickerSubscriptions: tickerSubscriptions,
       ),
+      tradeExecutor: BybitTradeExecutor(restClient),
       wsManager: wsManager,
       wsService: wsService,
       publicWsManager: publicWsManager,

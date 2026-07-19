@@ -4,6 +4,7 @@ import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_math.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/arbitrage_funding_panel.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart';
+import 'package:crypto_position/src/trade/arbitrage_entry_controller.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +54,8 @@ class _NarrowLayout extends StatelessWidget {
         _CalcButton(wm: wm),
         const SizedBox(height: 16),
         _Results(wm: wm),
+        _SlippagePanel(wm: wm),
+        _EntryPanel(wm: wm),
       ],
     );
   }
@@ -81,14 +84,13 @@ class _WideLayout extends StatelessWidget {
               _CalcButton(wm: wm),
               const SizedBox(height: 16),
               _Results(wm: wm),
+              _SlippagePanel(wm: wm),
+              _EntryPanel(wm: wm),
             ],
           ),
         ),
         const SizedBox(width: 24),
-        Expanded(
-          flex: 6,
-          child: _LiveSection(wm: wm, chartHeight: 460),
-        ),
+        Expanded(flex: 6, child: _LiveSection(wm: wm, chartHeight: 460)),
       ],
     );
   }
@@ -631,6 +633,272 @@ class _Results extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Per-leg order-book fill quality for the last calculation: whether the
+/// visible depth covers the sized quantity and the expected slippage.
+class _SlippagePanel extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _SlippagePanel({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        wm.fill1,
+        wm.fill2,
+        wm.exchange1,
+        wm.exchange2,
+      ]),
+      builder: (context, _) {
+        final f1 = wm.fill1.value;
+        final f2 = wm.fill2.value;
+        if (f1 == null && f2 == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Исполнение по стакану',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  if (f1 != null)
+                    _leg(context, wm.exchange1.value?.label ?? 'Нога 1', f1),
+                  if (f2 != null)
+                    _leg(context, wm.exchange2.value?.label ?? 'Нога 2', f2),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Оценка по снимку стакана — не гарантия исполнения.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).hintColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _leg(BuildContext context, String label, FillEstimate f) {
+    final ok = f.covered;
+    final color = ok ? Colors.green : Colors.orange;
+    final coverage = f.requestedQty > 0
+        ? (f.filledQty / f.requestedQty * 100).clamp(0, 100)
+        : 0;
+    final status = ok
+        ? 'покрытие полное'
+        : 'покрытие ${coverage.toStringAsFixed(0)}% — риск частичного';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            '${ok ? '✅' : '⚠️'} $status · слип ${f.slippagePct.toStringAsFixed(3)}%',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Order preview, preflight canary and the entry action for the current plan.
+class _EntryPanel extends StatelessWidget {
+  final ArbitrageCalculatorWm wm;
+  const _EntryPanel({required this.wm});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        wm.entryPlan,
+        wm.canaryReport,
+        wm.entryReport,
+        wm.entryBusy,
+      ]),
+      builder: (context, _) {
+        final plan = wm.entryPlan.value;
+        if (plan == null) return const SizedBox.shrink();
+        final busy = wm.entryBusy.value;
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Вход в позицию',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  _legRow(context, 'LONG', plan.long),
+                  _legRow(context, 'SHORT', plan.short),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton.outlined(
+                          label: 'Проверить',
+                          onPressed: busy ? null : wm.runCanary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppButton(
+                          label: 'Войти',
+                          onPressed: (busy || !plan.valid)
+                              ? null
+                              : () => _confirmAndEnter(context, plan),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (busy)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  _canaryResult(context, wm.canaryReport.value),
+                  _entryResult(context, wm.entryReport.value),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _legRow(BuildContext context, String side, EntryLeg leg) {
+    final invalid = leg.invalidReason;
+    final text = invalid == null
+        ? '${leg.exchange.label}: $side ${_fmtQty(leg.qty)} @ ${_fmtPrice(leg.price)}'
+        : '${leg.exchange.label}: $side — $invalid';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: invalid == null ? null : Colors.red,
+        ),
+      ),
+    );
+  }
+
+  Widget _canaryResult(BuildContext context, CanaryReport? report) {
+    if (report == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            report.ok
+                ? '✅ Обе биржи принимают ордера'
+                : '⚠️ Канарейка выявила проблемы',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: report.ok ? Colors.green : Colors.orange,
+            ),
+          ),
+          for (final leg in report.legs)
+            if (!leg.ok)
+              Text(
+                '${leg.exchange.label}: ${leg.message ?? 'ошибка'}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.red),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _entryResult(BuildContext context, EntryReport? report) {
+    if (report == null) return const SizedBox.shrink();
+    final color = report.ok
+        ? Colors.green
+        : (report.unwound ? Colors.orange : Colors.red);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            report.ok
+                ? '✅ Позиция открыта'
+                : '⚠️ ${report.note ?? 'ошибка входа'}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: color),
+          ),
+          for (final leg in report.legs)
+            Text(
+              leg.ok
+                  ? '${leg.exchange.label}: ордер ${leg.orderId ?? ''}'
+                  : '${leg.exchange.label}: ${leg.message ?? 'отклонён'}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: leg.ok ? null : Colors.red,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmAndEnter(BuildContext context, EntryPlan plan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Подтвердите вход'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Будут выставлены реальные ордера:'),
+            const SizedBox(height: 8),
+            Text(
+              '${plan.long.exchange.label}: LONG '
+              '${_fmtQty(plan.long.qty)} @ ${_fmtPrice(plan.long.price)}',
+            ),
+            Text(
+              '${plan.short.exchange.label}: SHORT '
+              '${_fmtQty(plan.short.qty)} @ ${_fmtPrice(plan.short.price)}',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Войти'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) await wm.executeEntry();
+  }
+}
+
+String _fmtQty(double v) {
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  return v.toStringAsFixed(4);
 }
 
 class _InfoCard extends StatelessWidget {

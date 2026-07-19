@@ -36,12 +36,18 @@ class BybitMarketData implements MarketDataProvider {
           if (symbol == null || base == null || quote == null) continue;
           final minutes = asDouble(row['fundingInterval']);
           if (minutes != null) _intervalHours[symbol] = minutes / 60;
+          final lot = row['lotSizeFilter'] as Map<String, Object?>?;
+          final price = row['priceFilter'] as Map<String, Object?>?;
           result.add(
             PerpInstrument(
               exchange: ExchangeId.bybit,
               symbol: symbol,
               base: base,
               quote: quote,
+              qtyStep: asDouble(lot?['qtyStep']),
+              minQty: asDouble(lot?['minOrderQty']),
+              tickSize: asDouble(price?['tickSize']),
+              contractSize: 1,
             ),
           );
         }
@@ -70,6 +76,42 @@ class BybitMarketData implements MarketDataProvider {
       intervalHours: _intervalHours[symbol] ?? 8,
       nextFundingMs: asInt(row['nextFundingTime']),
     );
+  }
+
+  @override
+  Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50}) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/v5/market/orderbook',
+      queryParams: {'category': 'linear', 'symbol': symbol, 'limit': depth},
+    );
+    return response.fold(
+      (data) {
+        final code = asInt(data['retCode']);
+        if (code != null && code != 0) {
+          throw StateError('Bybit error $code: ${data['retMsg']}');
+        }
+        final result = data['result'] as Map<String, Object?>?;
+        return OrderBook(
+          bids: _levels(result?['b']),
+          asks: _levels(result?['a']),
+        );
+      },
+      (error) => throw error,
+    );
+  }
+
+  /// Parses Bybit's `[[price, size], ...]` book side into [BookLevel]s.
+  static List<BookLevel> _levels(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <BookLevel>[];
+    for (final row in raw) {
+      if (row is! List || row.length < 2) continue;
+      final price = asDouble(row[0]);
+      final size = asDouble(row[1]);
+      if (price == null || size == null) continue;
+      out.add(BookLevel(price, size));
+    }
+    return out;
   }
 
   Future<Map<String, Object?>> _ticker(String symbol) async {

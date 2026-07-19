@@ -62,15 +62,18 @@ class OkxAccountRepositoryFactory {
       protocol: protocol,
     );
 
+    final restClient = RestClient(dio);
+
     return OkxAccountSession(
       repository: OkxAccountRepository(
-        okxAccountApi: OkxAccountApi(RestClient(dio)),
+        okxAccountApi: OkxAccountApi(restClient),
         clock: clock,
         accountSubscriber: accountSubscriber,
         positionSubscriber: positionSubscriber,
         markPriceSubscriptions: markPriceSubscriptions,
         fundingRateSubscriptions: fundingRateSubscriptions,
       ),
+      tradeExecutor: OkxTradeExecutor(restClient),
       wsManager: wsManager,
       wsService: wsService,
       publicWsManager: publicWsManager,

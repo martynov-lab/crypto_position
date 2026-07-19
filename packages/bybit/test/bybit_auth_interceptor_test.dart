@@ -74,5 +74,22 @@ void main() {
         ),
       );
     });
+
+    test('signs the raw JSON body for POST, not the query string', () {
+      const body = '{"category":"linear","symbol":"BTCUSDT","side":"Buy"}';
+      final options = RequestOptions(
+        path: '/v5/order/create',
+        baseUrl: 'https://api.bybit.com',
+        method: 'POST',
+        data: body,
+      );
+      interceptor.onRequest(options, RequestInterceptorHandler());
+
+      final timestamp = options.headers['X-BAPI-TIMESTAMP'] as String;
+      final expected = Hmac(sha256, utf8.encode('secret'))
+          .convert(utf8.encode('${timestamp}key60000$body'))
+          .toString();
+      expect(options.headers['X-BAPI-SIGN'], expected);
+    });
   });
 }

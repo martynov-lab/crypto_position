@@ -1,3 +1,4 @@
+import 'package:exchange/exchange.dart';
 import 'package:mexc/mexc.dart';
 import 'package:network/network.dart';
 
@@ -5,6 +6,9 @@ import 'package:network/network.dart';
 /// (private personal stream after login and public ticker stream).
 class MexcAccountSession {
   final MexcAccountRepository repository;
+
+  /// Order placement over the same signed REST client.
+  final TradeExecutor tradeExecutor;
   final WsManager wsManager;
   final WsManager publicWsManager;
   final WsService _wsService;
@@ -12,6 +16,7 @@ class MexcAccountSession {
 
   MexcAccountSession({
     required this.repository,
+    required this.tradeExecutor,
     required this.wsManager,
     required this.publicWsManager,
     required WsService wsService,

@@ -13,14 +13,54 @@ class PerpInstrument {
   /// Normalized quote asset (e.g. `USDT`).
   final String quote;
 
+  /// Minimum order-size increment, in base units (or contracts where the
+  /// exchange sizes orders in contracts). Null when the exchange didn't report
+  /// it. Used to round order quantities to a value the exchange will accept.
+  final double? qtyStep;
+
+  /// Minimum order size, same unit as [qtyStep]. Null when unknown.
+  final double? minQty;
+
+  /// Minimum price increment. Null when unknown. Used to round limit prices.
+  final double? tickSize;
+
+  /// Value of one contract in base units. `1` (or null) for exchanges that
+  /// size orders directly in the base asset; >1 (e.g. Gate `quanto_multiplier`)
+  /// where one contract represents a fixed amount of the base asset.
+  final double? contractSize;
+
   const PerpInstrument({
     required this.exchange,
     required this.symbol,
     required this.base,
     required this.quote,
+    this.qtyStep,
+    this.minQty,
+    this.tickSize,
+    this.contractSize,
   });
 
   String get pair => '$base/$quote';
+}
+
+/// One side's price level in an order book.
+class BookLevel {
+  final double price;
+
+  /// Resting size at [price], in base units (implementations convert from
+  /// contracts using [PerpInstrument.contractSize] where needed).
+  final double size;
+
+  const BookLevel(this.price, this.size);
+}
+
+/// A depth snapshot for one instrument. [bids] descend from the best (highest)
+/// bid; [asks] ascend from the best (lowest) ask.
+class OrderBook {
+  final List<BookLevel> bids;
+  final List<BookLevel> asks;
+
+  const OrderBook({required this.bids, required this.asks});
 }
 
 /// A live price snapshot for one instrument.
@@ -67,4 +107,9 @@ abstract interface class MarketDataProvider {
 
   /// Current funding rate, interval and next settlement for [symbol].
   Future<FundingInfo> fetchFunding(String symbol);
+
+  /// Order-book depth for [symbol]: up to [depth] levels per side, sizes
+  /// normalized to base units. A snapshot — callers must treat it as an
+  /// estimate, not a guarantee of fill.
+  Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50});
 }

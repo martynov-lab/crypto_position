@@ -1,3 +1,4 @@
+import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
 import 'package:okx/okx.dart';
 
@@ -5,6 +6,9 @@ import 'package:okx/okx.dart';
 /// (private account stream and public mark-price stream).
 class OkxAccountSession {
   final OkxAccountRepository repository;
+
+  /// Order placement over the same signed REST client.
+  final TradeExecutor tradeExecutor;
   final WsManager wsManager;
   final WsManager publicWsManager;
   final WsService _wsService;
@@ -12,6 +16,7 @@ class OkxAccountSession {
 
   OkxAccountSession({
     required this.repository,
+    required this.tradeExecutor,
     required this.wsManager,
     required this.publicWsManager,
     required WsService wsService,

@@ -48,13 +48,16 @@ class MexcAccountRepositoryFactory {
       protocol: protocol,
     );
 
+    final restClient = RestClient(dio);
+
     return MexcAccountSession(
       repository: MexcAccountRepository(
-        mexcAccountApi: MexcAccountApi(RestClient(dio)),
+        mexcAccountApi: MexcAccountApi(restClient),
         accountSubscriber: accountSubscriber,
         positionSubscriber: positionSubscriber,
         tickerSubscriptions: tickerSubscriptions,
       ),
+      tradeExecutor: MexcTradeExecutor(restClient),
       wsManager: wsManager,
       wsService: wsService,
       publicWsManager: publicWsManager,

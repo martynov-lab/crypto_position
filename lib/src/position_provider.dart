@@ -22,6 +22,8 @@ import 'package:crypto_position/src/market_data/market_data_registry.dart';
 import 'package:crypto_position/src/market_data/mexc_market_data.dart';
 import 'package:crypto_position/src/market_data/okx_market_data.dart';
 import 'package:crypto_position/src/screener_service.dart';
+import 'package:crypto_position/src/trade/trade_executor_registry.dart';
+import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
 import 'package:okx/okx.dart';
 import 'package:crypto_position/src/share_preferences/shared_preferences_helper.dart';
@@ -147,6 +149,21 @@ class PositionProvider extends StatelessWidget {
             ExchangeId.mexc: context.read<MexcSessionService>().hasCredentials,
           },
         ),
+      ),
+      Provider<TradeExecutorRegistry>(
+        create: (context) => TradeExecutorRegistry(<ExchangeId, TradeExecutor?
+            Function()>{
+          ExchangeId.bybit: () =>
+              context.read<BybitSessionService>().session.value?.tradeExecutor,
+          ExchangeId.okx: () =>
+              context.read<OkxSessionService>().session.value?.tradeExecutor,
+          ExchangeId.bitget: () =>
+              context.read<BitgetSessionService>().session.value?.tradeExecutor,
+          ExchangeId.gate: () =>
+              context.read<GateSessionService>().session.value?.tradeExecutor,
+          ExchangeId.mexc: () =>
+              context.read<MexcSessionService>().session.value?.tradeExecutor,
+        }),
       ),
     ],
     child: child,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:crypto_position/src/fees/fee_settings_store.dart';
 import 'package:crypto_position/src/market_data/exchange_id.dart';
@@ -7,7 +8,10 @@ import 'package:crypto_position/src/market_data/market_data_registry.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_model.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_math.dart';
+import 'package:crypto_position/src/trade/arbitrage_entry_controller.dart';
+import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:elementary/elementary.dart';
+import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,13 +42,16 @@ class ArbitrageCalculatorWm
     with WidgetsBindingObserver {
   final MarketDataRegistry _registry;
   final FeeSettingsStore _feeStore;
+  final ArbitrageEntryController _entryController;
 
   ArbitrageCalculatorWm(
     super.model, {
     required MarketDataRegistry registry,
     required FeeSettingsStore feeStore,
+    required ArbitrageEntryController entryController,
   }) : _registry = registry,
-       _feeStore = feeStore;
+       _feeStore = feeStore,
+       _entryController = entryController;
 
   // Inputs.
   final searchController = TextEditingController();
@@ -76,8 +83,22 @@ class ArbitrageCalculatorWm
   final _dataError = ValueNotifier<String?>(null);
   final _catalogLoading = ValueNotifier<bool>(false);
 
+  // Latest depth snapshots, kept for the fill simulation in [calculate].
+  OrderBook? _book1;
+  OrderBook? _book2;
+
   // Result.
   final _result = ValueNotifier<ArbitrageResult?>(null);
+
+  // Fill estimates per leg, from the latest depth snapshot (see [calculate]).
+  final _fill1 = ValueNotifier<FillEstimate?>(null);
+  final _fill2 = ValueNotifier<FillEstimate?>(null);
+
+  // Entry (trading) state.
+  final _entryPlan = ValueNotifier<EntryPlan?>(null);
+  final _canaryReport = ValueNotifier<CanaryReport?>(null);
+  final _entryReport = ValueNotifier<EntryReport?>(null);
+  final _entryBusy = ValueNotifier<bool>(false);
 
   Timer? _pollTimer;
   int _pollGen = 0;
@@ -97,6 +118,12 @@ class ArbitrageCalculatorWm
   ValueListenable<String?> get dataError => _dataError;
   ValueListenable<bool> get catalogLoading => _catalogLoading;
   ValueListenable<ArbitrageResult?> get result => _result;
+  ValueListenable<FillEstimate?> get fill1 => _fill1;
+  ValueListenable<FillEstimate?> get fill2 => _fill2;
+  ValueListenable<EntryPlan?> get entryPlan => _entryPlan;
+  ValueListenable<CanaryReport?> get canaryReport => _canaryReport;
+  ValueListenable<EntryReport?> get entryReport => _entryReport;
+  ValueListenable<bool> get entryBusy => _entryBusy;
   Listenable get connectedListenable => _registry.connectedListenable;
 
   /// Current spread (leg2 vs leg1), or null before the first sample.
@@ -172,6 +199,12 @@ class ArbitrageCalculatorWm
     _dataError.dispose();
     _catalogLoading.dispose();
     _result.dispose();
+    _fill1.dispose();
+    _fill2.dispose();
+    _entryPlan.dispose();
+    _canaryReport.dispose();
+    _entryReport.dispose();
+    _entryBusy.dispose();
     super.dispose();
   }
 
@@ -261,6 +294,13 @@ class ArbitrageCalculatorWm
     _funding2.value = null;
     _spreadSeries.value = const [];
     _result.value = null;
+    _fill1.value = null;
+    _fill2.value = null;
+    _book1 = null;
+    _book2 = null;
+    _entryPlan.value = null;
+    _canaryReport.value = null;
+    _entryReport.value = null;
     _dataError.value = null;
 
     if (!_hasValidSelection) return;
@@ -293,6 +333,8 @@ class ArbitrageCalculatorWm
         p2.fetchQuote(sym2),
         p1.fetchFunding(sym1),
         p2.fetchFunding(sym2),
+        p1.fetchOrderBook(sym1),
+        p2.fetchOrderBook(sym2),
       ]);
       if (gen != _pollGen) return; // selection changed mid-flight
       final q1 = results[0] as Quote;
@@ -301,6 +343,8 @@ class ArbitrageCalculatorWm
       _quote2.value = q2;
       _funding1.value = results[2] as FundingInfo;
       _funding2.value = results[3] as FundingInfo;
+      _book1 = results[4] as OrderBook;
+      _book2 = results[5] as OrderBook;
       _dataError.value = null;
 
       if (q1.mid > 0) {
@@ -350,6 +394,156 @@ class ArbitrageCalculatorWm
       leg1IsLong: q1.mid <= q2.mid,
     );
     _result.value = computeArbitrage(input);
+    _updateFills(input.leg1IsLong);
+    _buildEntryPlan(input.leg1IsLong);
+  }
+
+  /// Builds the two-leg entry plan (sizes, limit prices, per-leg validity) from
+  /// the current selection, quotes and instrument filters. Cleared when the
+  /// selection is incomplete or an instrument is missing.
+  void _buildEntryPlan(bool leg1IsLong) {
+    // A new calculation invalidates any prior canary / entry outcome.
+    _canaryReport.value = null;
+    _entryReport.value = null;
+
+    final base = _selectedBase.value;
+    final e1 = _exchange1.value;
+    final e2 = _exchange2.value;
+    final q1 = _quote1.value;
+    final q2 = _quote2.value;
+    if (base == null || e1 == null || e2 == null || q1 == null || q2 == null) {
+      _entryPlan.value = null;
+      return;
+    }
+
+    final longEx = leg1IsLong ? e1 : e2;
+    final shortEx = leg1IsLong ? e2 : e1;
+    final longMid = (leg1IsLong ? q1 : q2).mid;
+    final longCap =
+        double.tryParse((leg1IsLong ? capital1Controller : capital2Controller)
+            .text) ?? 0;
+    final shortCap =
+        double.tryParse((leg1IsLong ? capital2Controller : capital1Controller)
+            .text) ?? 0;
+    final longInstr = _byExchange[longEx]?[base];
+    final shortInstr = _byExchange[shortEx]?[base];
+    final shortMid = (leg1IsLong ? q2 : q1).mid;
+    if (longInstr == null || shortInstr == null ||
+        longMid <= 0 || shortMid <= 0) {
+      _entryPlan.value = null;
+      return;
+    }
+
+    final lev = _leverage.value;
+    final entrySpread = double.tryParse(entrySpreadController.text) ?? 0;
+    final prices = entryLimitPrices(
+      longMid: longMid,
+      entrySpreadPct: entrySpread,
+      longTick: longInstr.tickSize,
+      shortTick: shortInstr.tickSize,
+    );
+
+    // Delta-neutral: match the base quantity across both legs, then convert to
+    // each exchange's native order unit and round to its step.
+    final baseLong = longCap * lev / prices.longPrice;
+    final baseShort = shortCap * lev / prices.shortPrice;
+    final matchedBase = math.min(baseLong, baseShort);
+    final longQty = roundQty(
+      matchedBase / (longInstr.contractSize ?? 1),
+      step: longInstr.qtyStep,
+      minQty: longInstr.minQty,
+    );
+    final shortQty = roundQty(
+      matchedBase / (shortInstr.contractSize ?? 1),
+      step: shortInstr.qtyStep,
+      minQty: shortInstr.minQty,
+    );
+
+    _entryPlan.value = EntryPlan(
+      long: EntryLeg(
+        exchange: longEx,
+        symbol: longInstr.symbol,
+        side: OrderSide.buy,
+        qty: longQty,
+        price: prices.longPrice,
+        minQty: longInstr.minQty ?? longQty,
+        refPrice: longMid,
+        invalidReason: _legInvalidReason(longEx, longQty),
+      ),
+      short: EntryLeg(
+        exchange: shortEx,
+        symbol: shortInstr.symbol,
+        side: OrderSide.sell,
+        qty: shortQty,
+        price: prices.shortPrice,
+        minQty: shortInstr.minQty ?? shortQty,
+        refPrice: shortMid,
+        invalidReason: _legInvalidReason(shortEx, shortQty),
+      ),
+    );
+  }
+
+  String? _legInvalidReason(ExchangeId exchange, double qty) {
+    if (_entryController.executorFor(exchange) == null) {
+      return 'нет активной сессии';
+    }
+    if (qty <= 0) return 'объём ниже минимума биржи';
+    return null;
+  }
+
+  /// Runs the zero-risk preflight canary on the current plan.
+  Future<void> runCanary() async {
+    final plan = _entryPlan.value;
+    if (plan == null || _entryBusy.value) return;
+    _entryBusy.value = true;
+    _canaryReport.value = null;
+    try {
+      _canaryReport.value = await _entryController.runCanary(plan);
+    } finally {
+      _entryBusy.value = false;
+    }
+  }
+
+  /// Executes the symmetric entry for the current plan.
+  Future<void> executeEntry() async {
+    final plan = _entryPlan.value;
+    if (plan == null || !plan.valid || _entryBusy.value) return;
+    _entryBusy.value = true;
+    _entryReport.value = null;
+    try {
+      _entryReport.value =
+          await _entryController.execute(plan, leverage: _leverage.value);
+    } finally {
+      _entryBusy.value = false;
+    }
+  }
+
+  /// Walks each leg's latest depth snapshot with the sized quantity to estimate
+  /// fill coverage and slippage. The long leg buys (crosses asks), the short
+  /// leg sells (crosses bids).
+  void _updateFills(bool leg1IsLong) {
+    final q1 = _quote1.value;
+    final q2 = _quote2.value;
+    final lev = _leverage.value;
+    final cap1 = double.tryParse(capital1Controller.text) ?? 0;
+    final cap2 = double.tryParse(capital2Controller.text) ?? 0;
+
+    _fill1.value = (_book1 != null && q1 != null && q1.mid > 0)
+        ? simulateFill(
+            book: _book1!,
+            qtyBase: cap1 * lev / q1.mid,
+            isBuy: leg1IsLong,
+            referencePrice: q1.mid,
+          )
+        : null;
+    _fill2.value = (_book2 != null && q2 != null && q2.mid > 0)
+        ? simulateFill(
+            book: _book2!,
+            qtyBase: cap2 * lev / q2.mid,
+            isBuy: !leg1IsLong,
+            referencePrice: q2.mid,
+          )
+        : null;
   }
 }
 
@@ -360,5 +554,8 @@ ArbitrageCalculatorWm arbitrageCalculatorWmFactory({
     ArbitrageCalculatorModel(),
     registry: context.read<MarketDataRegistry>(),
     feeStore: context.read<FeeSettingsStore>(),
+    entryController: ArbitrageEntryController(
+      context.read<TradeExecutorRegistry>(),
+    ),
   );
 }

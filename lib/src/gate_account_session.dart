@@ -1,3 +1,4 @@
+import 'package:exchange/exchange.dart';
 import 'package:gate/gate.dart';
 import 'package:network/network.dart';
 
@@ -6,12 +7,16 @@ import 'package:network/network.dart';
 /// (Gate authenticates per subscription, so one connection serves both).
 class GateAccountSession {
   final GateAccountRepository repository;
+
+  /// Order placement over the same signed REST client.
+  final TradeExecutor tradeExecutor;
   final WsManager wsManager;
   final GateWsProtocol _protocol;
   final WsService _wsService;
 
   GateAccountSession({
     required this.repository,
+    required this.tradeExecutor,
     required this.wsManager,
     required GateWsProtocol protocol,
     required WsService wsService,
