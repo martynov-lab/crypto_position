@@ -72,7 +72,7 @@ class MonthlyPnlCard extends StatelessWidget {
         ? theme.colorScheme.onSurfaceVariant
         : (pnl > 0 ? Colors.green : Colors.red);
     return Text(
-      '${pnl >= 0 ? '+' : ''}\$${pnl.toStringAsFixed(2)}',
+      '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)} \$',
       style: theme.textTheme.titleMedium?.copyWith(color: color),
     );
   }
