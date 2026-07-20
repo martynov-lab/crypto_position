@@ -108,6 +108,44 @@ class OkxMarketData implements MarketDataProvider {
     return out;
   }
 
+  @override
+  Future<List<Candle>> fetchKlines(
+    String symbol, {
+    int intervalMinutes = 1,
+    int limit = 60,
+  }) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v5/market/candles',
+      queryParams: {
+        'instId': symbol,
+        'bar': '${intervalMinutes}m',
+        'limit': '$limit',
+      },
+    );
+    return response.fold(
+      (data) {
+        final code = data['code'];
+        if (code is String && code != '0') {
+          throw StateError('OKX error $code: ${data['msg']}');
+        }
+        final rows = data['data'] as List? ?? const [];
+        final out = <Candle>[];
+        // Rows are [ts, open, high, low, close, ...].
+        for (final row in rows) {
+          if (row is! List || row.length < 5) continue;
+          final ts = asInt(row[0]);
+          final close = asDouble(row[4]);
+          if (ts == null || close == null) continue;
+          out.add(Candle(ts, close));
+        }
+        // OKX returns newest first.
+        out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
+        return out;
+      },
+      (error) => throw error,
+    );
+  }
+
   Future<List<Map<String, Object?>>> _get(
     String path,
     Map<String, Object?> query,

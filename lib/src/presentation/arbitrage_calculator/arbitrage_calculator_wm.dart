@@ -37,6 +37,9 @@ const _pollInterval = Duration(seconds: 2);
 /// these by the selected timeframe, so history survives timeframe switches.
 const _maxSamples = 5400;
 
+/// How many 1-minute candles seed the chart on selection (one hour of history).
+const _seedCandles = 240;
+
 class ArbitrageCalculatorWm
     extends WidgetModel<ArbitrageCalculator, ArbitrageCalculatorModel>
     with WidgetsBindingObserver {
@@ -87,6 +90,12 @@ class ArbitrageCalculatorWm
   OrderBook? _book1;
   OrderBook? _book2;
 
+  /// Which leg is the buy (cheaper) side, locked once when the pair is selected
+  /// so the whole chart shares one orientation. Locking matters: recomputing it
+  /// per sample would force the spread positive forever and hide the moment the
+  /// venues invert, which is exactly what the trader needs to see.
+  final _buyIsExchange1 = ValueNotifier<bool?>(null);
+
   // Result.
   final _result = ValueNotifier<ArbitrageResult?>(null);
 
@@ -120,13 +129,30 @@ class ArbitrageCalculatorWm
   ValueListenable<ArbitrageResult?> get result => _result;
   ValueListenable<FillEstimate?> get fill1 => _fill1;
   ValueListenable<FillEstimate?> get fill2 => _fill2;
+  ValueListenable<bool?> get buyIsExchange1 => _buyIsExchange1;
   ValueListenable<EntryPlan?> get entryPlan => _entryPlan;
+
+  /// The venue to buy on (the cheaper one when the pair was selected), or null
+  /// before the orientation is locked.
+  ExchangeId? get buyExchange => switch (_buyIsExchange1.value) {
+    true => _exchange1.value,
+    false => _exchange2.value,
+    null => null,
+  };
+
+  /// The venue to sell on (the dearer one when the pair was selected).
+  ExchangeId? get sellExchange => switch (_buyIsExchange1.value) {
+    true => _exchange2.value,
+    false => _exchange1.value,
+    null => null,
+  };
   ValueListenable<CanaryReport?> get canaryReport => _canaryReport;
   ValueListenable<EntryReport?> get entryReport => _entryReport;
   ValueListenable<bool> get entryBusy => _entryBusy;
   Listenable get connectedListenable => _registry.connectedListenable;
 
-  /// Current spread (leg2 vs leg1), or null before the first sample.
+  /// Current spread of the sell leg over the buy leg, or null before the first
+  /// sample. Positive while the pair still favours the original direction.
   double? get currentSpreadPct =>
       _spreadSeries.value.isEmpty ? null : _spreadSeries.value.last.spreadPct;
 
@@ -201,6 +227,7 @@ class ArbitrageCalculatorWm
     _result.dispose();
     _fill1.dispose();
     _fill2.dispose();
+    _buyIsExchange1.dispose();
     _entryPlan.dispose();
     _canaryReport.dispose();
     _entryReport.dispose();
@@ -266,15 +293,14 @@ class ArbitrageCalculatorWm
       _candidates.value = const [];
       return;
     }
-    final matches = _basesToExchanges.keys
-        .where((b) => b.contains(query))
-        .toList()
-      ..sort((a, b) {
-        // Prefix matches first, then alphabetical.
-        final ap = a.startsWith(query) ? 0 : 1;
-        final bp = b.startsWith(query) ? 0 : 1;
-        return ap != bp ? ap - bp : a.compareTo(b);
-      });
+    final matches =
+        _basesToExchanges.keys.where((b) => b.contains(query)).toList()
+          ..sort((a, b) {
+            // Prefix matches first, then alphabetical.
+            final ap = a.startsWith(query) ? 0 : 1;
+            final bp = b.startsWith(query) ? 0 : 1;
+            return ap != bp ? ap - bp : a.compareTo(b);
+          });
     _candidates.value = matches.take(30).toList();
   }
 
@@ -298,6 +324,7 @@ class ArbitrageCalculatorWm
     _fill2.value = null;
     _book1 = null;
     _book2 = null;
+    _buyIsExchange1.value = null;
     _entryPlan.value = null;
     _canaryReport.value = null;
     _entryReport.value = null;
@@ -312,8 +339,64 @@ class ArbitrageCalculatorWm
   void _startTimer() {
     _pollTimer?.cancel();
     final gen = ++_pollGen;
+    unawaited(_seedSpreadHistory(gen));
     unawaited(_poll(gen));
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll(gen));
+  }
+
+  /// Locks the buy/sell orientation the first time both prices are known, so
+  /// the cheaper venue becomes the buy leg and the spread starts positive.
+  /// Equal prices leave it unlocked — there is no meaningful direction yet.
+  void _lockOrientation(double mid1, double mid2) {
+    if (_buyIsExchange1.value != null) return;
+    if (mid1 <= 0 || mid2 <= 0 || mid1 == mid2) return;
+    _buyIsExchange1.value = mid1 < mid2;
+  }
+
+  /// Backfills the spread chart from both venues' recent candles so the graph
+  /// is populated immediately instead of filling in over minutes of polling.
+  /// Seeded points are older than any live sample, so they are prepended to
+  /// whatever the concurrent poll has already collected.
+  Future<void> _seedSpreadHistory(int gen) async {
+    final base = _selectedBase.value;
+    final e1 = _exchange1.value;
+    final e2 = _exchange2.value;
+    if (base == null || e1 == null || e2 == null) return;
+    final sym1 = _byExchange[e1]?[base]?.symbol;
+    final sym2 = _byExchange[e2]?[base]?.symbol;
+    final p1 = _registry.provider(e1);
+    final p2 = _registry.provider(e2);
+    if (sym1 == null || sym2 == null || p1 == null || p2 == null) return;
+
+    try {
+      final series = await Future.wait([
+        p1.fetchKlines(sym1, limit: _seedCandles),
+        p2.fetchKlines(sym2, limit: _seedCandles),
+      ]);
+      if (gen != _pollGen) return; // selection changed mid-flight
+      // Lock from the newest candles so history shares the live orientation.
+      if (series[0].isNotEmpty && series[1].isNotEmpty) {
+        _lockOrientation(series[0].last.close, series[1].last.close);
+      }
+      final buyIs1 = _buyIsExchange1.value ?? true;
+      final points = spreadHistory(
+        buyIs1 ? series[0] : series[1],
+        buyIs1 ? series[1] : series[0],
+      );
+      if (points.isEmpty) return;
+
+      final seeded = [
+        for (final p in points) SpreadSample(p.tsMs, p.spreadPct),
+      ];
+      // Keep only live samples newer than the seeded history to avoid overlap.
+      final lastSeededTs = seeded.last.tsMs;
+      final live = _spreadSeries.value
+          .where((s) => s.tsMs > lastSeededTs)
+          .toList();
+      _spreadSeries.value = [...seeded, ...live];
+    } on Object {
+      // History is a nicety — a failure just leaves the chart to fill live.
+    }
   }
 
   Future<void> _poll(int gen) async {
@@ -347,13 +430,16 @@ class ArbitrageCalculatorWm
       _book2 = results[5] as OrderBook;
       _dataError.value = null;
 
-      if (q1.mid > 0) {
-        final spreadPct = (q2.mid - q1.mid) / q1.mid * 100;
+      _lockOrientation(q1.mid, q2.mid);
+      final buyIs1 = _buyIsExchange1.value ?? true;
+      final buyMid = buyIs1 ? q1.mid : q2.mid;
+      final sellMid = buyIs1 ? q2.mid : q1.mid;
+
+      if (buyMid > 0) {
+        // Quoted from the buy leg, so a fresh opportunity reads positive.
+        final spreadPct = (sellMid - buyMid) / buyMid * 100;
         final now = DateTime.now().millisecondsSinceEpoch;
-        final list = [
-          ..._spreadSeries.value,
-          SpreadSample(now, spreadPct),
-        ];
+        final list = [..._spreadSeries.value, SpreadSample(now, spreadPct)];
         if (list.length > _maxSamples) {
           list.removeRange(0, list.length - _maxSamples);
         }
@@ -372,8 +458,12 @@ class ArbitrageCalculatorWm
     final q2 = _quote2.value;
     final f1 = _funding1.value;
     final f2 = _funding2.value;
-    if (e1 == null || e2 == null || q1 == null || q2 == null ||
-        f1 == null || f2 == null) {
+    if (e1 == null ||
+        e2 == null ||
+        q1 == null ||
+        q2 == null ||
+        f1 == null ||
+        f2 == null) {
       return;
     }
 
@@ -420,16 +510,22 @@ class ArbitrageCalculatorWm
     final shortEx = leg1IsLong ? e2 : e1;
     final longMid = (leg1IsLong ? q1 : q2).mid;
     final longCap =
-        double.tryParse((leg1IsLong ? capital1Controller : capital2Controller)
-            .text) ?? 0;
+        double.tryParse(
+          (leg1IsLong ? capital1Controller : capital2Controller).text,
+        ) ??
+        0;
     final shortCap =
-        double.tryParse((leg1IsLong ? capital2Controller : capital1Controller)
-            .text) ?? 0;
+        double.tryParse(
+          (leg1IsLong ? capital2Controller : capital1Controller).text,
+        ) ??
+        0;
     final longInstr = _byExchange[longEx]?[base];
     final shortInstr = _byExchange[shortEx]?[base];
     final shortMid = (leg1IsLong ? q2 : q1).mid;
-    if (longInstr == null || shortInstr == null ||
-        longMid <= 0 || shortMid <= 0) {
+    if (longInstr == null ||
+        shortInstr == null ||
+        longMid <= 0 ||
+        shortMid <= 0) {
       _entryPlan.value = null;
       return;
     }
@@ -459,6 +555,25 @@ class ArbitrageCalculatorWm
       minQty: shortInstr.minQty,
     );
 
+    final longCanary = canaryOrder(
+      refPrice: longMid,
+      isBuy: true,
+      tickSize: longInstr.tickSize,
+      qtyStep: longInstr.qtyStep,
+      minQty: longInstr.minQty,
+      minNotional: longInstr.minNotional,
+      contractSize: longInstr.contractSize ?? 1,
+    );
+    final shortCanary = canaryOrder(
+      refPrice: shortMid,
+      isBuy: false,
+      tickSize: shortInstr.tickSize,
+      qtyStep: shortInstr.qtyStep,
+      minQty: shortInstr.minQty,
+      minNotional: shortInstr.minNotional,
+      contractSize: shortInstr.contractSize ?? 1,
+    );
+
     _entryPlan.value = EntryPlan(
       long: EntryLeg(
         exchange: longEx,
@@ -466,9 +581,15 @@ class ArbitrageCalculatorWm
         side: OrderSide.buy,
         qty: longQty,
         price: prices.longPrice,
-        minQty: longInstr.minQty ?? longQty,
+        canaryQty: longCanary.qty,
+        canaryPrice: longCanary.price,
         refPrice: longMid,
-        invalidReason: _legInvalidReason(longEx, longQty),
+        invalidReason: _legInvalidReason(
+          longEx,
+          longQty,
+          prices.longPrice,
+          longInstr,
+        ),
       ),
       short: EntryLeg(
         exchange: shortEx,
@@ -476,18 +597,39 @@ class ArbitrageCalculatorWm
         side: OrderSide.sell,
         qty: shortQty,
         price: prices.shortPrice,
-        minQty: shortInstr.minQty ?? shortQty,
+        canaryQty: shortCanary.qty,
+        canaryPrice: shortCanary.price,
         refPrice: shortMid,
-        invalidReason: _legInvalidReason(shortEx, shortQty),
+        invalidReason: _legInvalidReason(
+          shortEx,
+          shortQty,
+          prices.shortPrice,
+          shortInstr,
+        ),
       ),
     );
   }
 
-  String? _legInvalidReason(ExchangeId exchange, double qty) {
+  String? _legInvalidReason(
+    ExchangeId exchange,
+    double qty,
+    double price,
+    PerpInstrument instrument,
+  ) {
     if (_entryController.executorFor(exchange) == null) {
       return 'нет активной сессии';
     }
     if (qty <= 0) return 'объём ниже минимума биржи';
+    // Exchanges also enforce a minimum order value, so a valid quantity can
+    // still be rejected when the capital is too small.
+    final minNotional = instrument.minNotional;
+    if (minNotional != null) {
+      final notional = qty * price * (instrument.contractSize ?? 1);
+      if (notional < minNotional) {
+        return 'сумма ордера ${notional.toStringAsFixed(2)} < минимума '
+            '${minNotional.toStringAsFixed(0)} USDT — увеличьте капитал/плечо';
+      }
+    }
     return null;
   }
 
@@ -511,8 +653,10 @@ class ArbitrageCalculatorWm
     _entryBusy.value = true;
     _entryReport.value = null;
     try {
-      _entryReport.value =
-          await _entryController.execute(plan, leverage: _leverage.value);
+      _entryReport.value = await _entryController.execute(
+        plan,
+        leverage: _leverage.value,
+      );
     } finally {
       _entryBusy.value = false;
     }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:crypto_position/src/market_data/market_data_provider.dart';
 
 /// Inputs for one arbitrage-profitability estimate. Rates are per funding
@@ -215,6 +217,68 @@ double nativeOrderQty({
   if (price <= 0 || contractSize <= 0) return 0;
   final baseQty = capital * leverage / price;
   return roundQty(baseQty / contractSize, step: qtyStep, minQty: minQty);
+}
+
+/// One historical spread point: the percent premium of leg 2 over leg 1 at
+/// [tsMs].
+class SpreadPoint {
+  final int tsMs;
+  final double spreadPct;
+
+  const SpreadPoint(this.tsMs, this.spreadPct);
+}
+
+/// Aligns two candle series by timestamp and computes the spread of [leg2]
+/// over [leg1] at each shared bucket, oldest first. Timestamps present on only
+/// one exchange are dropped, so a venue that lists the coin later simply
+/// shortens the history rather than skewing it.
+List<SpreadPoint> spreadHistory(List<Candle> leg1, List<Candle> leg2) {
+  final byTs2 = {for (final c in leg2) c.tsMs: c.close};
+  final out = <SpreadPoint>[];
+  for (final c1 in leg1) {
+    final c2 = byTs2[c1.tsMs];
+    if (c2 == null || c1.close <= 0) continue;
+    out.add(SpreadPoint(c1.tsMs, (c2 - c1.close) / c1.close * 100));
+  }
+  out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
+  return out;
+}
+
+/// Rounds [raw] *up* to a multiple of [step] (null [step] passes through).
+/// Used where a floor would breach an exchange minimum.
+double roundQtyUp(double raw, {double? step}) {
+  if (step == null || step <= 0) return raw;
+  return ((raw / step) - 1e-9).ceilToDouble() * step;
+}
+
+/// Fallback minimum order value (USDT) for exchanges that don't report one.
+/// Sized so a probe clears the common 5 USDT floor; the probe is cancelled
+/// immediately, so erring large is harmless.
+const kDefaultMinNotional = 6.0;
+
+/// Price and size for the preflight canary probe: a limit order far from the
+/// market ([isBuy] buys 50% below, sells 50% above) that must still clear the
+/// exchange's minimum quantity *and* minimum order value. Because the probe
+/// price is deliberately far from mid, sizing off [minQty] alone usually falls
+/// short of the value floor — so the size is rounded **up** to whichever
+/// minimum binds.
+({double price, double qty}) canaryOrder({
+  required double refPrice,
+  required bool isBuy,
+  double? tickSize,
+  double? qtyStep,
+  double? minQty,
+  double? minNotional,
+  double contractSize = 1,
+}) {
+  final price = roundPrice(refPrice * (isBuy ? 0.5 : 1.5), tick: tickSize);
+  final cs = contractSize > 0 ? contractSize : 1.0;
+  final notional = minNotional ?? kDefaultMinNotional;
+  // Native units needed to reach the value floor at this (far) probe price.
+  final qtyForNotional = price > 0 ? notional / (price * cs) : 0.0;
+  final needed = math.max(minQty ?? 0, qtyForNotional);
+  final qty = roundQtyUp(needed, step: qtyStep);
+  return (price: price, qty: qty);
 }
 
 /// Limit prices for a spread entry. The long leg is anchored at its mid (a fair

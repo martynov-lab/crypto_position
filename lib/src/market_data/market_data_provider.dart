@@ -29,6 +29,11 @@ class PerpInstrument {
   /// where one contract represents a fixed amount of the base asset.
   final double? contractSize;
 
+  /// Minimum order value in quote currency (USDT). Exchanges reject orders
+  /// worth less than this even when the quantity clears [minQty]. Null when the
+  /// exchange doesn't report one.
+  final double? minNotional;
+
   const PerpInstrument({
     required this.exchange,
     required this.symbol,
@@ -38,6 +43,7 @@ class PerpInstrument {
     this.minQty,
     this.tickSize,
     this.contractSize,
+    this.minNotional,
   });
 
   String get pair => '$base/$quote';
@@ -61,6 +67,16 @@ class OrderBook {
   final List<BookLevel> asks;
 
   const OrderBook({required this.bids, required this.asks});
+}
+
+/// One historical candle. Only the close is kept — the spread history needs a
+/// single price per bucket.
+class Candle {
+  /// Candle open time, epoch ms.
+  final int tsMs;
+  final double close;
+
+  const Candle(this.tsMs, this.close);
 }
 
 /// A live price snapshot for one instrument.
@@ -112,4 +128,13 @@ abstract interface class MarketDataProvider {
   /// normalized to base units. A snapshot — callers must treat it as an
   /// estimate, not a guarantee of fill.
   Future<OrderBook> fetchOrderBook(String symbol, {int depth = 50});
+
+  /// Recent candles for [symbol], oldest first, used to seed the spread chart
+  /// with history instead of waiting for live samples to accumulate.
+  /// [intervalMinutes] is 1, 5 or 15; [limit] caps the number of candles.
+  Future<List<Candle>> fetchKlines(
+    String symbol, {
+    int intervalMinutes = 1,
+    int limit = 60,
+  });
 }

@@ -145,6 +145,115 @@ void main() {
     });
   });
 
+  group('spreadHistory', () {
+    test('computes leg2 premium over leg1 at each shared timestamp', () {
+      final points = spreadHistory(
+        const [Candle(1000, 100), Candle(2000, 200)],
+        const [Candle(1000, 101), Candle(2000, 202)],
+      );
+      expect(points, hasLength(2));
+      expect(points[0].spreadPct, closeTo(1, 1e-9));
+      expect(points[1].spreadPct, closeTo(1, 1e-9));
+    });
+
+    test('drops timestamps missing on one venue', () {
+      final points = spreadHistory(
+        const [Candle(1000, 100), Candle(2000, 100), Candle(3000, 100)],
+        const [Candle(2000, 105)],
+      );
+      expect(points, hasLength(1));
+      expect(points.single.tsMs, 2000);
+      expect(points.single.spreadPct, closeTo(5, 1e-9));
+    });
+
+    test('returns points oldest first regardless of input order', () {
+      final points = spreadHistory(
+        const [Candle(3000, 100), Candle(1000, 100), Candle(2000, 100)],
+        const [Candle(1000, 101), Candle(2000, 102), Candle(3000, 103)],
+      );
+      expect(points.map((p) => p.tsMs), [1000, 2000, 3000]);
+    });
+
+    test('skips non-positive leg1 prices instead of dividing by zero', () {
+      final points = spreadHistory(
+        const [Candle(1000, 0)],
+        const [Candle(1000, 100)],
+      );
+      expect(points, isEmpty);
+    });
+
+    test('no overlap yields an empty history', () {
+      final points = spreadHistory(
+        const [Candle(1000, 100)],
+        const [Candle(9000, 100)],
+      );
+      expect(points, isEmpty);
+    });
+  });
+
+  group('canaryOrder', () {
+    test('buy probe sits far below mid and clears the value floor', () {
+      // Probe price 50; 5 USDT floor needs 0.1 base, above minQty 0.001.
+      final c = canaryOrder(
+        refPrice: 100,
+        isBuy: true,
+        tickSize: 0.1,
+        qtyStep: 0.001,
+        minQty: 0.001,
+        minNotional: 5,
+      );
+      expect(c.price, closeTo(50, 1e-9));
+      expect(c.qty * c.price, greaterThanOrEqualTo(5));
+      expect(c.qty, closeTo(0.1, 1e-6));
+    });
+
+    test('sell probe sits far above mid', () {
+      final c = canaryOrder(refPrice: 100, isBuy: false, minNotional: 5);
+      expect(c.price, closeTo(150, 1e-9));
+      expect(c.qty * c.price, greaterThanOrEqualTo(5));
+    });
+
+    test('minQty wins when it already exceeds the value floor', () {
+      // minQty 1 at probe price 50 = 50 USDT, far above the 5 USDT floor.
+      final c = canaryOrder(
+        refPrice: 100,
+        isBuy: true,
+        qtyStep: 1,
+        minQty: 1,
+        minNotional: 5,
+      );
+      expect(c.qty, 1);
+    });
+
+    test('contract-sized instruments account for contract value', () {
+      // contractSize 0.01: one contract at 50 is worth 0.5 USDT, so the
+      // 5 USDT floor needs 10 contracts.
+      final c = canaryOrder(
+        refPrice: 100,
+        isBuy: true,
+        qtyStep: 1,
+        minNotional: 5,
+        contractSize: 0.01,
+      );
+      expect(c.qty, 10);
+    });
+
+    test('falls back to the default floor when none is reported', () {
+      final c = canaryOrder(refPrice: 100, isBuy: true, qtyStep: 0.001);
+      expect(c.qty * c.price, greaterThanOrEqualTo(kDefaultMinNotional));
+    });
+  });
+
+  group('roundQtyUp', () {
+    test('rounds up to the step', () {
+      expect(roundQtyUp(0.31, step: 0.1), closeTo(0.4, 1e-9));
+    });
+
+    test('exact multiples are not bumped a step', () {
+      expect(roundQtyUp(0.3, step: 0.1), closeTo(0.3, 1e-9));
+    });
+  });
+
   group('entryLimitPrices', () {
     test('short leg sits entrySpread above the long, both tick-rounded', () {
       final p = entryLimitPrices(

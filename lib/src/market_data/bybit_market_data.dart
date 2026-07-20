@@ -48,6 +48,7 @@ class BybitMarketData implements MarketDataProvider {
               minQty: asDouble(lot?['minOrderQty']),
               tickSize: asDouble(price?['tickSize']),
               contractSize: 1,
+              minNotional: asDouble(lot?['minNotionalValue']),
             ),
           );
         }
@@ -112,6 +113,52 @@ class BybitMarketData implements MarketDataProvider {
       out.add(BookLevel(price, size));
     }
     return out;
+  }
+
+  @override
+  Future<List<Candle>> fetchKlines(
+    String symbol, {
+    int intervalMinutes = 1,
+    int limit = 60,
+  }) async {
+    final response = await _client.get<Map<String, Object?>>(
+      '/v5/market/kline',
+      queryParams: {
+        'category': 'linear',
+        'symbol': symbol,
+        'interval': '$intervalMinutes',
+        'limit': limit,
+      },
+    );
+    return response.fold(
+      (data) {
+        final out = <Candle>[];
+        // Rows are [startMs, open, high, low, close, volume, turnover].
+        for (final row in _rows2(data)) {
+          if (row.length < 5) continue;
+          final ts = asInt(row[0]);
+          final close = asDouble(row[4]);
+          if (ts == null || close == null) continue;
+          out.add(Candle(ts, close));
+        }
+        // Bybit returns newest first; the chart wants oldest first.
+        out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
+        return out;
+      },
+      (error) => throw error,
+    );
+  }
+
+  /// Unwraps `result.list` as a list of rows (arrays), raising on error codes.
+  static List<List<Object?>> _rows2(Map<String, Object?> data) {
+    final code = asInt(data['retCode']);
+    if (code != null && code != 0) {
+      throw StateError('Bybit error $code: ${data['retMsg']}');
+    }
+    final result = data['result'] as Map<String, Object?>?;
+    final list = result?['list'] as List?;
+    return list?.whereType<List>().map((e) => e.cast<Object?>()).toList() ??
+        const [];
   }
 
   Future<Map<String, Object?>> _ticker(String symbol) async {

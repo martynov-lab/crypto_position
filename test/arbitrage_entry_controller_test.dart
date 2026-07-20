@@ -72,7 +72,8 @@ EntryPlan _plan() => const EntryPlan(
         side: OrderSide.buy,
         qty: 1,
         price: 100,
-        minQty: 0.001,
+        canaryQty: 0.12,
+        canaryPrice: 50,
         refPrice: 100,
       ),
       short: EntryLeg(
@@ -81,7 +82,8 @@ EntryPlan _plan() => const EntryPlan(
         side: OrderSide.sell,
         qty: 1,
         price: 101,
-        minQty: 1,
+        canaryQty: 1,
+        canaryPrice: 151.5,
         refPrice: 101,
       ),
     );

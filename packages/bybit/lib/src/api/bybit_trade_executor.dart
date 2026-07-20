@@ -9,7 +9,13 @@ class BybitTradeExecutor implements TradeExecutor {
 
   final RestClient _client;
 
-  const BybitTradeExecutor(this._client);
+  /// Whether the account runs hedge mode for a symbol, cached after the first
+  /// probe. Hedge mode needs an explicit `positionIdx` on every order; one-way
+  /// mode requires it to be 0. Sending the wrong one fails with retCode 10001
+  /// ("position idx not match position mode").
+  final _hedgeMode = <String, bool>{};
+
+  BybitTradeExecutor(this._client);
 
   @override
   Future<Result<ApiKeyPermissions, Object>> fetchApiPermissions() async {
@@ -92,6 +98,11 @@ class BybitTradeExecutor implements TradeExecutor {
         'price': _fmt(price),
         'timeInForce': postOnly ? 'PostOnly' : 'GTC',
         'reduceOnly': reduceOnly,
+        'positionIdx': await _positionIdx(
+          symbol: symbol,
+          side: side,
+          reduceOnly: reduceOnly,
+        ),
       },
     );
     return response.fold(
@@ -140,6 +151,50 @@ class BybitTradeExecutor implements TradeExecutor {
       },
       (error) => Err(error),
     );
+  }
+
+  /// The `positionIdx` this order must carry.
+  ///
+  /// One-way mode always uses 0. Hedge mode addresses a specific side: 1 is the
+  /// long position, 2 the short. An opening order targets the side it trades;
+  /// a reduce-only order targets the *opposite* side, because closing a long
+  /// means selling and closing a short means buying.
+  Future<int> _positionIdx({
+    required String symbol,
+    required OrderSide side,
+    required bool reduceOnly,
+  }) async {
+    if (!await _isHedgeMode(symbol)) return 0;
+    final targetsLong =
+        reduceOnly ? side == OrderSide.sell : side == OrderSide.buy;
+    return targetsLong ? 1 : 2;
+  }
+
+  /// Detects the symbol's position mode from its position list: hedge mode
+  /// reports entries with a non-zero `positionIdx` (both sides exist even when
+  /// flat). Cached per symbol; falls back to one-way if the probe fails.
+  Future<bool> _isHedgeMode(String symbol) async {
+    final cached = _hedgeMode[symbol];
+    if (cached != null) return cached;
+
+    final response = await _client.get<Map<String, Object?>>(
+      '/v5/position/list',
+      queryParams: {'category': _category, 'symbol': symbol},
+    );
+    final hedge = response.fold(
+      (data) {
+        if (_envelopeError(data) != null) return false;
+        final result = data['result'] as Map<String, Object?>?;
+        final list = result?['list'] as List<Object?>? ?? const [];
+        return list.any((e) {
+          final idx = (e as Map<String, Object?>?)?['positionIdx'];
+          return idx is int && idx != 0;
+        });
+      },
+      (_) => false,
+    );
+    _hedgeMode[symbol] = hedge;
+    return hedge;
   }
 
   /// Formats a number for Bybit's string fields without a trailing `.0` or

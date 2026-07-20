@@ -106,6 +106,29 @@ class GateMarketData implements MarketDataProvider {
     return out;
   }
 
+  @override
+  Future<List<Candle>> fetchKlines(
+    String symbol, {
+    int intervalMinutes = 1,
+    int limit = 60,
+  }) async {
+    final rows = await _getList('/api/v4/futures/usdt/candlesticks', {
+      'contract': symbol,
+      'interval': '${intervalMinutes}m',
+      'limit': limit,
+    });
+    final out = <Candle>[];
+    // Rows are objects: {t: seconds, o, h, l, c, v}.
+    for (final row in rows) {
+      final tsSec = asInt(row['t']);
+      final close = asDouble(row['c']);
+      if (tsSec == null || close == null) continue;
+      out.add(Candle(tsSec * 1000, close));
+    }
+    out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
+    return out;
+  }
+
   Future<List<Map<String, Object?>>> _getList(
     String path, [
     Map<String, Object?>? query,

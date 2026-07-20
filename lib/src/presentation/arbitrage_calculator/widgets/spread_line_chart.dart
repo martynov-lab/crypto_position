@@ -311,6 +311,8 @@ class _ChartPainter extends CustomPainter {
     canvas.restore();
 
     _drawLegend(canvas, plot);
+    // Painted last so it sits above the axis label it overlaps.
+    _drawCurrentValueTag(canvas, plot, size);
   }
 
   // --- coordinate mapping ---------------------------------------------------
@@ -424,6 +426,36 @@ class _ChartPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke,
     );
+  }
+
+  /// Rounded tag on the value ruler marking the latest spread, level with where
+  /// the line ends. Filled with the line colour so it reads as that series'
+  /// current value rather than another axis label.
+  void _drawCurrentValueTag(Canvas canvas, Rect plot, Size size) {
+    if (spots.isEmpty) return;
+    final value = spots.last.dy;
+    // Clamped so the tag stays visible when the last point is off-screen after
+    // a vertical zoom.
+    final y = _yToPx(plot, value).clamp(plot.top, plot.bottom);
+
+    final decimals = geom.interval >= 0.1 ? 2 : 3;
+    final tp = _layout(value.toStringAsFixed(decimals), _bg, 10, FontWeight.w700);
+
+    const padX = 4.0;
+    const padY = 2.0;
+    final rect = Rect.fromLTWH(
+      // Right-aligned to the canvas edge so a wide value can't overflow.
+      size.width - 2 - (tp.width + padX * 2),
+      y - (tp.height + padY * 2) / 2,
+      tp.width + padX * 2,
+      tp.height + padY * 2,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
+      Paint()..color = _lineColor,
+    );
+    tp.paint(canvas, Offset(rect.left + padX, rect.top + padY));
   }
 
   /// Corner legend: which venue to buy on (green) and sell on (red).

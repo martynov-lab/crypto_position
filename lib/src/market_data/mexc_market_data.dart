@@ -99,6 +99,32 @@ class MexcMarketData implements MarketDataProvider {
     return out;
   }
 
+  @override
+  Future<List<Candle>> fetchKlines(
+    String symbol, {
+    int intervalMinutes = 1,
+    int limit = 60,
+  }) async {
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final data = await _getMap('/api/v1/contract/kline/$symbol', {
+      'interval': 'Min$intervalMinutes',
+      'start': nowSec - intervalMinutes * 60 * limit,
+      'end': nowSec,
+    });
+    // MEXC returns parallel arrays: {time: [...s], close: [...], ...}.
+    final times = data['time'] as List? ?? const [];
+    final closes = data['close'] as List? ?? const [];
+    final out = <Candle>[];
+    for (var i = 0; i < times.length && i < closes.length; i++) {
+      final tsSec = asInt(times[i]);
+      final close = asDouble(closes[i]);
+      if (tsSec == null || close == null) continue;
+      out.add(Candle(tsSec * 1000, close));
+    }
+    out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
+    return out;
+  }
+
   Future<List<Map<String, Object?>>> _getList(String path) async {
     final response = await _client.get<Map<String, Object?>>(path);
     return response.fold(

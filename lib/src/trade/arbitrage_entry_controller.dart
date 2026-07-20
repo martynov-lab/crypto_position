@@ -15,10 +15,14 @@ class EntryLeg {
   /// Limit price, already rounded to the instrument tick.
   final double price;
 
-  /// Minimum order size in the native unit, used for the canary probe.
-  final double minQty;
+  /// Size of the canary probe, in the native unit. Sized to clear both the
+  /// exchange's minimum quantity and its minimum order value at [canaryPrice].
+  final double canaryQty;
 
-  /// Reference (mid) price, used to derive a non-marketable canary price.
+  /// Limit price of the canary probe: far from the market, so it cannot fill.
+  final double canaryPrice;
+
+  /// Reference (mid) price, used to price the unwind order.
   final double refPrice;
 
   /// Null when the leg is placeable; otherwise why it is not.
@@ -30,7 +34,8 @@ class EntryLeg {
     required this.side,
     required this.qty,
     required this.price,
-    required this.minQty,
+    required this.canaryQty,
+    required this.canaryPrice,
     required this.refPrice,
     this.invalidReason,
   });
@@ -136,16 +141,13 @@ class ArbitrageEntryController {
         }
     }
 
-    // A non-marketable probe: buy far below / sell far above the market.
-    final probePrice = leg.side == OrderSide.buy
-        ? leg.refPrice * 0.5
-        : leg.refPrice * 1.5;
-    final qty = leg.minQty > 0 ? leg.minQty : leg.qty;
+    // A non-marketable probe, pre-sized to clear the exchange's minimum
+    // quantity and minimum order value (see `canaryOrder`).
     final placed = await executor.placeLimitOrder(
       symbol: leg.symbol,
       side: leg.side,
-      qty: qty,
-      price: probePrice,
+      qty: leg.canaryQty,
+      price: leg.canaryPrice,
       postOnly: true,
     );
 

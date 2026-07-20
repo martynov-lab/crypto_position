@@ -307,25 +307,16 @@ class _LiveSection extends StatelessWidget {
                     listenable: Listenable.merge([
                       wm.spreadSeries,
                       wm.timeframeMin,
-                      wm.quote1,
-                      wm.quote2,
+                      wm.buyIsExchange1,
                     ]),
                     builder: (context, _) {
-                      final q1 = wm.quote1.value;
-                      final q2 = wm.quote2.value;
-                      String? buyLabel;
-                      String? sellLabel;
-                      if (q1 != null && q2 != null && q1.mid != q2.mid) {
-                        // Buy (long) the cheaper leg, sell (short) the dearer.
-                        final e1Cheaper = q1.mid < q2.mid;
-                        buyLabel = (e1Cheaper ? e1 : e2).label;
-                        sellLabel = (e1Cheaper ? e2 : e1).label;
-                      }
+                      // The legend follows the chart's locked orientation, so
+                      // the two can't disagree if the venues later invert.
                       return SpreadLineChart(
                         series: wm.spreadSeries.value,
                         timeframeMin: wm.timeframeMin.value,
-                        buyLabel: buyLabel,
-                        sellLabel: sellLabel,
+                        buyLabel: wm.buyExchange?.label,
+                        sellLabel: wm.sellExchange?.label,
                       );
                     },
                   ),
