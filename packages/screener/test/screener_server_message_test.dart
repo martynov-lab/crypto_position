@@ -17,13 +17,19 @@ void main() {
           "vwap_sell": "1.2712",
           "gross_pct": "0.0301",
           "net_pct": "0.0289",
+          "out_pct": "-0.0014",
+          "round_trip_pct": "0.0246",
+          "funding_cost_pct": "0.0000",
+          "expected_profit_quote": "49.20",
+          "leg_skew_ms": 120,
           "executable_notional": "2000",
           "capped_by_depth": false
         },
         "funding": { "long_exchange": "okx", "short_exchange": "bybit", "diff_apr": "0.1832" },
         "dynamics": {
-          "baseline_pct": "0.0031", "stddev_pct": "0.0090", "current_pct": "0.0289",
-          "z_score": "3.41", "sample_count": 120, "episode_ms": 1400
+          "baseline_pct": "0.0031", "mad_pct": "0.0012", "stddev_pct": "0.0090",
+          "current_pct": "0.0289", "z_score": "3.41", "sample_count": 120,
+          "baseline_samples": 98, "episode_ms": 1400
         },
         "quality_score": "66.2",
         "ts_ms": 1752230400000
@@ -36,8 +42,15 @@ void main() {
       expect(event.instrument.pair, 'ARB/USDT');
       expect(event.spread.buyExchange, 'mexc');
       expect(event.spread.netPct, '0.0289');
+      expect(event.spread.roundTripPct, '0.0246');
+      expect(event.spread.outPct, '-0.0014');
+      expect(event.spread.fundingCostPct, '0.0000');
+      expect(event.spread.expectedProfitQuote, '49.20');
+      expect(event.spread.legSkewMs, 120);
       expect(event.spread.cappedByDepth, isFalse);
       expect(event.funding?.diffApr, '0.1832');
+      expect(event.dynamics?.madPct, '0.0012');
+      expect(event.dynamics?.baselineSamples, 98);
       expect(event.dynamics?.sampleCount, 120);
       expect(event.dynamics?.episodeMs, 1400);
       expect(event.qualityScore, '66.2');

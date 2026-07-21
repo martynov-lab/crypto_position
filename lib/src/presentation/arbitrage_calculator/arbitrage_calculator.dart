@@ -84,13 +84,23 @@ class _WideLayout extends StatelessWidget {
               _CalcButton(wm: wm),
               const SizedBox(height: 16),
               _Results(wm: wm),
+            ],
+          ),
+        ),
+        const SizedBox(width: 24),
+        // The chart column also carries the execution panels: both describe the
+        // live market rather than the user's inputs.
+        Expanded(
+          flex: 6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _LiveSection(wm: wm, chartHeight: 460),
               _SlippagePanel(wm: wm),
               _EntryPanel(wm: wm),
             ],
           ),
         ),
-        const SizedBox(width: 24),
-        Expanded(flex: 6, child: _LiveSection(wm: wm, chartHeight: 460)),
       ],
     );
   }

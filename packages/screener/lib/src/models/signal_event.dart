@@ -35,8 +35,27 @@ class Spread {
   final String vwapSell;
   final String grossPct;
 
-  /// Already net of taker fees on both legs.
+  /// The **entry** spread, net of the two *entry* taker fees. Not the trade's
+  /// profit — see [roundTripPct].
   final String netPct;
+
+  /// **The number to trade on.** Entry spread minus the expected unwind level,
+  /// minus the other two taker fees, minus the funding carry.
+  final String roundTripPct;
+
+  /// What unwinding right now at the current books would cost (normally
+  /// negative).
+  final String outPct;
+
+  /// Funding paid (positive) or earned (negative) over the assumed hold;
+  /// already included in [roundTripPct].
+  final String fundingCostPct;
+
+  /// `roundTripPct × executableNotional`, in USDT.
+  final String expectedProfitQuote;
+
+  /// How far apart in time the two legs' books were observed.
+  final int legSkewMs;
   final String executableNotional;
 
   /// `true` when the book could not supply the full `target_notional_q` — a
@@ -51,11 +70,18 @@ class Spread {
     required this.vwapSell,
     required this.grossPct,
     required this.netPct,
+    required this.roundTripPct,
+    required this.outPct,
+    required this.fundingCostPct,
+    required this.expectedProfitQuote,
+    required this.legSkewMs,
     required this.executableNotional,
     required this.cappedByDepth,
   });
 
   Decimal? get netPctValue => Decimals.parse(netPct);
+
+  Decimal? get roundTripPctValue => Decimals.parse(roundTripPct);
 
   factory Spread.fromJson(Map<String, Object?> json) => Spread(
         instrument: Instrument.fromJson(
@@ -67,6 +93,11 @@ class Spread {
         vwapSell: Decimals.str(json['vwap_sell']),
         grossPct: Decimals.str(json['gross_pct']),
         netPct: Decimals.str(json['net_pct']),
+        roundTripPct: Decimals.str(json['round_trip_pct']),
+        outPct: Decimals.str(json['out_pct']),
+        fundingCostPct: Decimals.str(json['funding_cost_pct']),
+        expectedProfitQuote: Decimals.str(json['expected_profit_quote']),
+        legSkewMs: (json['leg_skew_ms'] as num?)?.toInt() ?? 0,
         executableNotional: Decimals.str(json['executable_notional']),
         cappedByDepth: json['capped_by_depth'] == true,
       );
@@ -93,16 +124,26 @@ class Funding {
 
 /// Spread dynamics — the "real vs mirage" signal (omitted when unavailable).
 class SpreadDynamics {
-  /// Median spread over the rolling window; a *tight* baseline with a large
-  /// [currentPct] is the healthy, capturable pattern.
+  /// Median spread over the *quiet* part of the window (samples since the
+  /// current episode opened are excluded, so a spike cannot inflate it); a
+  /// *tight* baseline with a large [currentPct] is the healthy, capturable
+  /// pattern.
   final String baselinePct;
+
+  /// Median absolute deviation (scaled to a stddev equivalent) — the robust
+  /// dispersion [zScore] is measured in. [stddevPct] is kept for display.
+  final String madPct;
   final String stddevPct;
   final String currentPct;
 
-  /// Stddevs the current spread sits above its own mean; a high z is a genuine
-  /// spike, not "it's always wide".
+  /// Robust deviations the current spread sits above the quiet baseline; a
+  /// high z is a genuine spike, not "it's always wide".
   final String zScore;
   final int sampleCount;
+
+  /// How many samples fed the baseline — use this (not a missing
+  /// [SignalEvent.qualityScore]) to detect warmup.
+  final int baselineSamples;
 
   /// How long the spread has stayed above the reference threshold; a large
   /// value means it is not reverting (likely a structural trap).
@@ -110,19 +151,23 @@ class SpreadDynamics {
 
   const SpreadDynamics({
     required this.baselinePct,
+    required this.madPct,
     required this.stddevPct,
     required this.currentPct,
     required this.zScore,
     required this.sampleCount,
+    required this.baselineSamples,
     required this.episodeMs,
   });
 
   factory SpreadDynamics.fromJson(Map<String, Object?> json) => SpreadDynamics(
         baselinePct: Decimals.str(json['baseline_pct']),
+        madPct: Decimals.str(json['mad_pct']),
         stddevPct: Decimals.str(json['stddev_pct']),
         currentPct: Decimals.str(json['current_pct']),
         zScore: Decimals.str(json['z_score']),
         sampleCount: (json['sample_count'] as num?)?.toInt() ?? 0,
+        baselineSamples: (json['baseline_samples'] as num?)?.toInt() ?? 0,
         episodeMs: (json['episode_ms'] as num?)?.toInt() ?? 0,
       );
 }
@@ -136,8 +181,10 @@ class SignalEvent {
   final Funding? funding;
   final SpreadDynamics? dynamics;
 
-  /// 0–100 composite (tight baseline + strong spike + short episode + broad
-  /// coverage). Sort/alert by this to surface the best coins.
+  /// 0–100 composite, dominated by the round-trip edge and the depth behind
+  /// it, then spike strength, baseline tightness, leg freshness and coverage.
+  /// Sent on every event now (neutral terms during warmup), so a missing score
+  /// no longer means "warming up" — use [SpreadDynamics.baselineSamples].
   final String? qualityScore;
   final int tsMs;
 
@@ -152,10 +199,10 @@ class SignalEvent {
   Instrument get instrument => spread.instrument;
 
   /// Sort key for the live table: higher quality first, falling back to the
-  /// net edge when the score is absent.
+  /// round-trip edge when the score is absent.
   Decimal get sortScore =>
       Decimals.parse(qualityScore) ??
-      spread.netPctValue ??
+      spread.roundTripPctValue ??
       Decimal.zero;
 
   factory SignalEvent.fromJson(Map<String, Object?> json) {

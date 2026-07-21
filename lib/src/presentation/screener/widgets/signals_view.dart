@@ -216,6 +216,7 @@ class _SignalCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
@@ -224,7 +225,19 @@ class _SignalCard extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-                _PercentLabel(fraction: spread.netPct, large: true),
+                // round_trip_pct is the trade's actual profit (four taker fees
+                // + unwind level + funding); net_pct is only the entry half.
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _PercentLabel(fraction: spread.roundTripPct, large: true),
+                    Text(
+                      'вход ${Decimals.percent(spread.netPct)}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline),
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -233,6 +246,8 @@ class _SignalCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 _Tag('объём ${spread.executableNotional}'),
+                if (spread.expectedProfitQuote.isNotEmpty)
+                  _Tag('~${spread.expectedProfitQuote} USDT'),
                 if (spread.cappedByDepth)
                   const _Tag('ограничено глубиной', warning: true),
                 if (event.funding != null)
@@ -267,7 +282,7 @@ class _DynamicsRow extends StatelessWidget {
       'сейчас ${Decimals.percent(dynamics.currentPct)}  ·  '
       'z ${dynamics.zScore}  ·  '
       'эпизод ${(dynamics.episodeMs / 1000).toStringAsFixed(1)}с  ·  '
-      'n=${dynamics.sampleCount}',
+      'n=${dynamics.sampleCount}/база ${dynamics.baselineSamples}',
       style: style?.copyWith(color: Theme.of(context).colorScheme.outline),
     );
   }

@@ -38,6 +38,7 @@ class _FiltersViewState extends State<FiltersView> {
   late final Set<String> _exchanges;
   late final Set<MarketPair> _marketPairs;
   late bool _includeFunding;
+  late bool _includeFundingCost;
   late bool _enableDynamics;
   late bool _requireTransferable;
   late bool _requireCommonNetwork;
@@ -50,12 +51,17 @@ class _FiltersViewState extends State<FiltersView> {
       'quote': TextEditingController(text: config.quote ?? ScreenerDefaults.quote),
       'minNet': _seed(config.minNetSpreadPct, ScreenerDefaults.minNetSpreadPct),
       'maxNet': _seed(config.maxNetSpreadPct, ScreenerDefaults.maxNetSpreadPct),
+      'minRoundTrip':
+          _seed(config.minRoundTripPct, ScreenerDefaults.minRoundTripPct),
       'targetNotional':
           _seed(config.targetNotionalQ, ScreenerDefaults.targetNotionalQ),
       'minExecutable': _seed(
           config.minExecutableNotional, ScreenerDefaults.minExecutableNotional),
       'depthLevels': _seed(config.depthLevelsN, ScreenerDefaults.depthLevelsN),
       'maxBookAge': _seed(config.maxBookAgeMs, ScreenerDefaults.maxBookAgeMs),
+      'maxLegSkew': _seed(config.maxLegSkewMs, ScreenerDefaults.maxLegSkewMs),
+      'maxPriceDeviation': _seed(
+          config.maxPriceDeviationPct, ScreenerDefaults.maxPriceDeviationPct),
       'minFundingApr':
           _seed(config.minFundingDiffApr, ScreenerDefaults.minFundingDiffApr),
       'fundingHold':
@@ -71,6 +77,8 @@ class _FiltersViewState extends State<FiltersView> {
           _seed(config.maxChartSpreadPct, ScreenerDefaults.maxChartSpreadPct),
       'hysteresis':
           _seed(config.hysteresisStepPct, ScreenerDefaults.hysteresisStepPct),
+      'episodeCloseTicks':
+          _seed(config.episodeCloseTicks, ScreenerDefaults.episodeCloseTicks),
       'minLifetime':
           _seed(config.minSignalLifetimeMs, ScreenerDefaults.minSignalLifetimeMs),
       'cooldown': _seed(config.cooldownMs, ScreenerDefaults.cooldownMs),
@@ -89,6 +97,8 @@ class _FiltersViewState extends State<FiltersView> {
     _marketPairs = {...(config.marketPairs ?? ScreenerDefaults.marketPairs)};
     _includeFunding =
         config.includeFundingDiff ?? ScreenerDefaults.includeFundingDiff;
+    _includeFundingCost =
+        config.includeFundingCost ?? ScreenerDefaults.includeFundingCost;
     _enableDynamics = config.enableDynamics ?? ScreenerDefaults.enableDynamics;
     _requireTransferable =
         config.requireTransferable ?? ScreenerDefaults.requireTransferable;
@@ -160,15 +170,19 @@ class _FiltersViewState extends State<FiltersView> {
       minOpenInterest: str('minOi'),
       minNetSpreadPct: str('minNet'),
       maxNetSpreadPct: str('maxNet'),
+      minRoundTripPct: str('minRoundTrip'),
       targetNotionalQ: str('targetNotional'),
       minExecutableNotional: str('minExecutable'),
       depthLevelsN: intVal('depthLevels'),
       includeFundingDiff: _includeFunding,
       minFundingDiffApr: str('minFundingApr'),
       fundingHoldHours: str('fundingHold'),
+      includeFundingCost: _includeFundingCost,
       requireTransferable: _requireTransferable,
       requireCommonNetwork: _requireCommonNetwork,
       maxBookAgeMs: intVal('maxBookAge'),
+      maxLegSkewMs: intVal('maxLegSkew'),
+      maxPriceDeviationPct: str('maxPriceDeviation'),
       enableDynamics: _enableDynamics,
       maxBaselineSpreadPct: str('maxBaseline'),
       minSpikeZ: str('minSpikeZ'),
@@ -176,6 +190,7 @@ class _FiltersViewState extends State<FiltersView> {
       minDynamicsSamples: intVal('minSamples'),
       maxChartSpreadPct: str('maxChartSpread'),
       hysteresisStepPct: str('hysteresis'),
+      episodeCloseTicks: intVal('episodeCloseTicks'),
       minSignalLifetimeMs: intVal('minLifetime'),
       cooldownMs: intVal('cooldown'),
       maxSignalsPerMin: intVal('maxPerMin'),
@@ -243,12 +258,15 @@ class _FiltersViewState extends State<FiltersView> {
           ],
         ),
         _section('Спред (доли, 0.03 = 3%)'),
-        _field('minNet', 'Мин. чистый спред'),
+        _field('minRoundTrip', 'Мин. прибыль за круг (главный фильтр)'),
+        _field('minNet', 'Мин. чистый спред на входе'),
         _field('maxNet', 'Макс. чистый спред (ghost cap)'),
         _field('targetNotional', 'Целевой объём VWAP (USDT)'),
         _field('minExecutable', 'Мин. исполнимый объём (USDT)'),
         _field('depthLevels', 'Уровней стакана для VWAP', number: true),
         _field('maxBookAge', 'Макс. возраст стакана (мс)', number: true),
+        _field('maxLegSkew', 'Макс. разбег между ногами (мс)', number: true),
+        _field('maxPriceDeviation', 'Макс. отклонение цены от медианы'),
         _field('quote', 'Котируемый актив'),
         _section('Фандинг'),
         SwitchListTile(
@@ -258,6 +276,11 @@ class _FiltersViewState extends State<FiltersView> {
         ),
         _field('minFundingApr', 'Мин. годовой фандинг-дифф'),
         _field('fundingHold', 'Часы удержания для фандинга'),
+        SwitchListTile(
+          title: const Text('Вычитать фандинг из прибыли круга'),
+          value: _includeFundingCost,
+          onChanged: (value) => setState(() => _includeFundingCost = value),
+        ),
         _section('Динамика спреда'),
         SwitchListTile(
           title: const Text('Фильтры динамики'),
@@ -271,6 +294,8 @@ class _FiltersViewState extends State<FiltersView> {
         _field('maxChartSpread', 'Макс. спред на графике (фильтр аномалий)'),
         _section('Частота сигналов'),
         _field('hysteresis', 'Шаг гистерезиса'),
+        _field('episodeCloseTicks', 'Отказов подряд до закрытия эпизода',
+            number: true),
         _field('minLifetime', 'Мин. время жизни сигнала (мс)', number: true),
         _field('cooldown', 'Пауза между сигналами (мс)', number: true),
         _field('maxPerMin', 'Лимит сигналов в минуту', number: true),

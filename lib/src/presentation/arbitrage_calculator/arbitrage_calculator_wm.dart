@@ -445,6 +445,8 @@ class ArbitrageCalculatorWm
         }
         _spreadSeries.value = list;
       }
+
+      _refreshPlanAndFills();
     } on Object catch (e) {
       if (gen != _pollGen) return;
       _dataError.value = e.toString();
@@ -484,18 +486,32 @@ class ArbitrageCalculatorWm
       leg1IsLong: q1.mid <= q2.mid,
     );
     _result.value = computeArbitrage(input);
+    // A new calculation invalidates any prior canary / entry outcome.
+    _canaryReport.value = null;
+    _entryReport.value = null;
     _updateFills(input.leg1IsLong);
     _buildEntryPlan(input.leg1IsLong);
+  }
+
+  /// Keeps the fill estimate and the entry plan live from each poll, so both
+  /// panels are usable as soon as a coin and its two venues are picked —
+  /// "Рассчитать" is only needed for the profit projection. Skipped while an
+  /// order is in flight so the plan can't shift under a running entry.
+  void _refreshPlanAndFills() {
+    if (_entryBusy.value) return;
+    final q1 = _quote1.value;
+    final q2 = _quote2.value;
+    if (q1 == null || q2 == null) return;
+    // Long the cheaper leg — same orientation the calculation uses.
+    final leg1IsLong = q1.mid <= q2.mid;
+    _updateFills(leg1IsLong);
+    _buildEntryPlan(leg1IsLong);
   }
 
   /// Builds the two-leg entry plan (sizes, limit prices, per-leg validity) from
   /// the current selection, quotes and instrument filters. Cleared when the
   /// selection is incomplete or an instrument is missing.
   void _buildEntryPlan(bool leg1IsLong) {
-    // A new calculation invalidates any prior canary / entry outcome.
-    _canaryReport.value = null;
-    _entryReport.value = null;
-
     final base = _selectedBase.value;
     final e1 = _exchange1.value;
     final e2 = _exchange2.value;

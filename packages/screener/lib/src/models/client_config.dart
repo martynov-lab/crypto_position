@@ -8,6 +8,7 @@ class ScreenerDefaults {
   static const quote = 'USDT';
   static const minNetSpreadPct = '0.006';
   static const maxNetSpreadPct = '0.25';
+  static const minRoundTripPct = '0.001';
   static const min24hQuoteVolume = '100000';
   static const max24hQuoteVolume = '200000';
   static const marketPairs = [MarketPair.perpPerp];
@@ -17,7 +18,11 @@ class ScreenerDefaults {
   static const includeFundingDiff = true;
   static const minFundingDiffApr = '0.15';
   static const fundingHoldHours = '8';
+  static const includeFundingCost = true;
   static const maxBookAgeMs = 3000;
+  static const maxLegSkewMs = 750;
+  static const maxPriceDeviationPct = '0.10';
+  static const episodeCloseTicks = 3;
   static const enableDynamics = true;
   static const maxBaselineSpreadPct = '0.01';
   static const minSpikeZ = '3';
@@ -87,15 +92,29 @@ class ClientConfig {
   static const maxVolumeOff = '';
   final String? minNetSpreadPct;
   final String? maxNetSpreadPct;
+
+  /// The real profitability gate: floor on `round_trip_pct` (entry minus the
+  /// unwind level, four taker fees and the funding carry).
+  final String? minRoundTripPct;
   final String? targetNotionalQ;
   final String? minExecutableNotional;
   final int? depthLevelsN;
   final bool? includeFundingDiff;
   final String? minFundingDiffApr;
   final String? fundingHoldHours;
+
+  /// Subtract the pair's funding carry from `round_trip_pct`.
+  final bool? includeFundingCost;
   final bool? requireTransferable;
   final bool? requireCommonNetwork;
   final int? maxBookAgeMs;
+
+  /// Max age gap between the two legs' books; `0` = off.
+  final int? maxLegSkewMs;
+
+  /// Drop a venue whose mid is this far from the cross-venue median (needs ≥3
+  /// venues). Left unset the server default applies.
+  final String? maxPriceDeviationPct;
   final bool? enableDynamics;
   final String? maxBaselineSpreadPct;
   final String? minSpikeZ;
@@ -103,6 +122,9 @@ class ClientConfig {
   final int? minDynamicsSamples;
   final String? maxChartSpreadPct;
   final String? hysteresisStepPct;
+
+  /// Consecutive rejects before an episode closes and hysteresis re-arms.
+  final int? episodeCloseTicks;
   final int? minSignalLifetimeMs;
   final int? cooldownMs;
   final int? maxSignalsPerMin;
@@ -118,15 +140,19 @@ class ClientConfig {
     this.minOpenInterest,
     this.minNetSpreadPct,
     this.maxNetSpreadPct,
+    this.minRoundTripPct,
     this.targetNotionalQ,
     this.minExecutableNotional,
     this.depthLevelsN,
     this.includeFundingDiff,
     this.minFundingDiffApr,
     this.fundingHoldHours,
+    this.includeFundingCost,
     this.requireTransferable,
     this.requireCommonNetwork,
     this.maxBookAgeMs,
+    this.maxLegSkewMs,
+    this.maxPriceDeviationPct,
     this.enableDynamics,
     this.maxBaselineSpreadPct,
     this.minSpikeZ,
@@ -134,6 +160,7 @@ class ClientConfig {
     this.minDynamicsSamples,
     this.maxChartSpreadPct,
     this.hysteresisStepPct,
+    this.episodeCloseTicks,
     this.minSignalLifetimeMs,
     this.cooldownMs,
     this.maxSignalsPerMin,
@@ -162,15 +189,19 @@ class ClientConfig {
     put('min_open_interest', minOpenInterest);
     put('min_net_spread_pct', minNetSpreadPct);
     put('max_net_spread_pct', maxNetSpreadPct);
+    put('min_round_trip_pct', minRoundTripPct);
     put('target_notional_q', targetNotionalQ);
     put('min_executable_notional', minExecutableNotional);
     put('depth_levels_n', depthLevelsN);
     put('include_funding_diff', includeFundingDiff);
     put('min_funding_diff_apr', minFundingDiffApr);
     put('funding_hold_hours', fundingHoldHours);
+    put('include_funding_cost', includeFundingCost);
     put('require_transferable', requireTransferable);
     put('require_common_network', requireCommonNetwork);
     put('max_book_age_ms', maxBookAgeMs);
+    put('max_leg_skew_ms', maxLegSkewMs);
+    put('max_price_deviation_pct', maxPriceDeviationPct);
     put('enable_dynamics', enableDynamics);
     put('max_baseline_spread_pct', maxBaselineSpreadPct);
     put('min_spike_z', minSpikeZ);
@@ -178,6 +209,7 @@ class ClientConfig {
     put('min_dynamics_samples', minDynamicsSamples);
     put('max_chart_spread_pct', maxChartSpreadPct);
     put('hysteresis_step_pct', hysteresisStepPct);
+    put('episode_close_ticks', episodeCloseTicks);
     put('min_signal_lifetime_ms', minSignalLifetimeMs);
     put('cooldown_ms', cooldownMs);
     put('max_signals_per_min', maxSignalsPerMin);

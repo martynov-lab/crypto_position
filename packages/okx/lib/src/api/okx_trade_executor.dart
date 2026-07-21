@@ -15,7 +15,13 @@ class OkxTradeExecutor implements TradeExecutor {
 
   final RestClient _client;
 
-  const OkxTradeExecutor(this._client);
+  /// Whether the account runs hedge mode (`long_short_mode`), cached after the
+  /// first lookup. Hedge mode requires `posSide` on every order and rejects it
+  /// with "Parameter posSide error" when missing; net mode must omit it.
+  /// Account-wide on OKX, so one flag covers every symbol.
+  bool? _hedgeMode;
+
+  OkxTradeExecutor(this._client);
 
   @override
   Future<Result<ApiKeyPermissions, Object>> fetchApiPermissions() async {
@@ -66,6 +72,7 @@ class OkxTradeExecutor implements TradeExecutor {
     bool postOnly = false,
     bool reduceOnly = false,
   }) async {
+    final hedge = await _isHedgeMode();
     final response = await _client.post<Map<String, Object?>>(
       '/api/v5/trade/order',
       body: {
@@ -75,33 +82,73 @@ class OkxTradeExecutor implements TradeExecutor {
         'ordType': postOnly ? 'post_only' : 'limit',
         'px': _fmt(price),
         'sz': _fmt(qty),
-        'reduceOnly': reduceOnly,
+        // Hedge mode addresses a position side explicitly; net mode must not
+        // send posSide, and only net mode accepts reduceOnly.
+        if (hedge)
+          'posSide': _posSide(side: side, reduceOnly: reduceOnly)
+        else
+          'reduceOnly': reduceOnly,
       },
     );
     return response.fold(
       (data) {
-        final err = _envelopeError(data);
-        if (err != null) return Err(err);
         try {
+          // OKX reports per-order failures in data[0].sCode behind a generic
+          // "All operations failed" envelope, so read the row before the
+          // envelope or the real reason is lost.
           final list = data['data'] as List<Object?>? ?? const [];
-          final row = list.first! as Map<String, Object?>;
-          // Per-order sCode is "0" on success even within a 0-code envelope.
-          final sCode = row['sCode'];
+          final row = list.isEmpty ? null : list.first! as Map<String, Object?>;
+          final sCode = row?['sCode'];
           if (sCode is String && sCode != '0') {
             return Err(
               CustomBackendException(
-                message: row['sMsg'] as String? ?? 'OKX order error $sCode',
-                error: row,
+                message: row?['sMsg'] as String? ?? 'OKX order error $sCode',
+                error: row ?? data,
               ),
             );
           }
-          return Ok(OrderAck(orderId: row['ordId'] as String));
+          final err = _envelopeError(data);
+          if (err != null) return Err(err);
+          return Ok(OrderAck(orderId: row!['ordId'] as String));
         } on Object catch (error) {
           return Err(error);
         }
       },
       (error) => Err(error),
     );
+  }
+
+  /// The position side this order addresses in hedge mode. An opening order
+  /// targets the side it trades; a closing (reduce-only) order targets the
+  /// opposite one, because closing a long means selling and closing a short
+  /// means buying.
+  static String _posSide({required OrderSide side, required bool reduceOnly}) {
+    final targetsLong =
+        reduceOnly ? side == OrderSide.sell : side == OrderSide.buy;
+    return targetsLong ? 'long' : 'short';
+  }
+
+  /// Reads the account's position mode from `account/config`, cached for the
+  /// session. Falls back to net mode when the lookup fails.
+  Future<bool> _isHedgeMode() async {
+    final cached = _hedgeMode;
+    if (cached != null) return cached;
+
+    final response = await _client.get<Map<String, Object?>>(
+      '/api/v5/account/config',
+    );
+    final hedge = response.fold(
+      (data) {
+        if (_envelopeError(data) != null) return false;
+        final list = data['data'] as List<Object?>? ?? const [];
+        if (list.isEmpty) return false;
+        final row = list.first! as Map<String, Object?>;
+        return row['posMode'] == 'long_short_mode';
+      },
+      (_) => false,
+    );
+    _hedgeMode = hedge;
+    return hedge;
   }
 
   @override
