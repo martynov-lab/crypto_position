@@ -267,9 +267,11 @@ class ScreenerClient {
         'kind': instrument.kind,
       };
 
+  /// An empty token is sent as JSON `null` — the shape the server expects from
+  /// an unauthenticated (local) client.
   void _sendSubscribe() => _send({
         'type': 'subscribe',
-        'token': null,
+        'token': _config.token.isEmpty ? null : _config.token,
         'config': _clientConfig.toJson(),
       });
 

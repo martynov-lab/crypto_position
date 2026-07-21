@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Exchange REST/WS calls and the screener socket. The debug/profile
+         manifests declare this too, so its absence here only breaks release. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="crypto_position"
         android:name="${applicationName}"

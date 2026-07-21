@@ -8,7 +8,8 @@ import 'package:screener/screener.dart';
 
 /// App-scoped owner of the arbitrage screener connection.
 ///
-/// Unlike the exchange sessions this needs no credentials: it opens the public
+/// Unlike the exchange sessions this needs no API keys — only the server's
+/// shared token from [ScreenerConfig] (build-time): it opens the
 /// WebSocket signal stream on [init] and keeps a newest-wins table of live
 /// [SignalEvent]s keyed by instrument.
 class ScreenerService {

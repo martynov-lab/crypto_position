@@ -36,6 +36,27 @@ void main() {
     );
   });
 
+  test('sends the configured token in the subscribe handshake', () {
+    final channel = FakeWebSocketChannel();
+    final client = ScreenerClient(
+      config: const ScreenerConfig(token: 'secret'),
+      connect: (_) => channel,
+    );
+    addTearDown(client.dispose);
+    client.start();
+    expect(channel.sent.single['token'], 'secret');
+  });
+
+  test('ScreenerConfig uses TLS for a remote host and plain for loopback', () {
+    const remote = ScreenerConfig(host: 'arovit-screener.duckdns.org');
+    expect(remote.wsUri.toString(), 'wss://arovit-screener.duckdns.org/ws');
+    expect(remote.baseRestUrl, 'https://arovit-screener.duckdns.org');
+
+    const local = ScreenerConfig(host: '127.0.0.1:8080');
+    expect(local.wsUri.toString(), 'ws://127.0.0.1:8080/ws');
+    expect(local.baseRestUrl, 'http://127.0.0.1:8080');
+  });
+
   test('subscribed ack flips state to connected and stores effective config',
       () async {
     client.start();
