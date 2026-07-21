@@ -33,7 +33,10 @@ class HomeScreen extends ElementaryWidget<HomeScreenWm> {
                 },
               );
             }
-            return AllBalancesView(accounts: accounts);
+            return RefreshIndicator(
+              onRefresh: wm.refresh,
+              child: AllBalancesView(accounts: accounts),
+            );
           },
         );
       },

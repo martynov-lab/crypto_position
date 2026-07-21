@@ -22,6 +22,12 @@ class BitgetSessionService {
   final ValueNotifier<String?> _error = ValueNotifier(null);
   final ValueNotifier<BitgetAccountSession?> _session = ValueNotifier(null);
 
+  StreamSubscription<WsConnectionState>? _wsStateSub;
+
+  /// Set once the private socket drops: the stream reports changes only, so
+  /// whatever happened while it was down has to be re-read over REST.
+  bool _needsResync = false;
+
   ValueListenable<bool> get hasCredentials => _hasCredentials;
   ValueListenable<bool> get loading => _loading;
   ValueListenable<String?> get error => _error;
@@ -73,14 +79,51 @@ class BitgetSessionService {
     _closeSession();
   }
 
-  Future<void> _wsConnect() async => _session.value?.startWs();
+  /// Re-reads balance and open positions over REST.
+  ///
+  /// The WS stream only pushes changes, so a position closed while the socket
+  /// was down never produces an event and would otherwise stay on screen.
+  Future<void> resync() async {
+    final session = _session.value;
+    if (session == null) return;
+
+    final balanceResult = await session.repository.fetchBalance();
+    if (_session.value != session) return;
+    balanceResult.fold((_) {}, (error) => _error.value = error.toString());
+
+    final positionsResult = await session.repository.fetchPositions();
+    if (_session.value != session) return;
+    positionsResult.fold((_) {}, (error) => _error.value = error.toString());
+  }
+
+  /// Resyncs on returning to foreground even when
+  /// [BitgetAccountSession.startWs] is a no-op because the socket was never
+  /// observed to drop.
+  Future<void> _wsConnect() async {
+    await _session.value?.startWs();
+    await resync();
+  }
 
   Future<void> _wsDisconnect() async => _session.value?.stopWs();
+
+  void _onWsState(WsConnectionState state) {
+    if (state == WsConnectionState.connected) {
+      if (_needsResync) {
+        _needsResync = false;
+        unawaited(resync());
+      }
+      return;
+    }
+    _needsResync = true;
+  }
 
   void _closeSession() {
     _reconnectionService
       ..removeOnConnectedAction(_wsConnect)
       ..removeOnDisconnectedAction(_wsDisconnect);
+    unawaited(_wsStateSub?.cancel());
+    _wsStateSub = null;
+    _needsResync = false;
     _session.value?.dispose();
     _session.value = null;
   }
@@ -98,6 +141,9 @@ class BitgetSessionService {
       apiSecret: apiSecret,
       passphrase: passphrase,
     );
+    unawaited(_wsStateSub?.cancel());
+    _needsResync = false;
+    _wsStateSub = session.wsManager.stateStream.listen(_onWsState);
     _session.value = session;
 
     // On success the repository stores the balance in its own notifier.

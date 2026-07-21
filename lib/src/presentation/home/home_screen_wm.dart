@@ -153,6 +153,16 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     );
   }
 
+  /// Pull-to-refresh: re-reads every connected exchange over REST, so stale
+  /// state left behind by a missed WS event can always be cleared by hand.
+  Future<void> refresh() => Future.wait([
+        _bybit.resync(),
+        _okx.resync(),
+        _bitget.resync(),
+        _gate.resync(),
+        _mexc.resync(),
+      ]);
+
   void _syncStatus() {
     _hasAnyCredentials.value = _bybit.hasCredentials.value ||
         _okx.hasCredentials.value ||

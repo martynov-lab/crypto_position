@@ -27,6 +27,8 @@ class AllBalancesView extends StatelessWidget {
         .toList();
 
     return ListView(
+      // Keeps pull-to-refresh reachable when the content fits the viewport.
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         _buildTotalCard(context, totalBalance, totalPnl),

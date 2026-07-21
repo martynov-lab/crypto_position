@@ -21,6 +21,11 @@ typedef WsChannelFactory = WebSocketChannel Function(Uri uri);
 ///
 /// Incoming frames and heartbeats are classified by [protocol] so this core
 /// stays exchange-agnostic.
+///
+/// A silent socket is treated as a dead one: when nothing arrives for
+/// [staleTimeout] the connection is torn down and rebuilt, since a half-open
+/// TCP connection never raises an error of its own and would otherwise keep
+/// serving stale data forever.
 class WsManager {
   final Uri Function() _getUri;
   final Map<String, Object?> Function()? _authMessageFactory;
@@ -29,10 +34,12 @@ class WsManager {
   final RetryPolicy _retryPolicy;
   final WsChannelFactory _connect;
   final Duration _pingInterval;
+  final Duration _staleTimeout;
 
   WebSocketChannel? _channel;
   StreamSubscription<Object?>? _subscription;
   Timer? _pingTimer;
+  Timer? _staleTimer;
   Timer? _retryTimer;
   int _retryCount = 0;
   final _lossStopwatch = Stopwatch();
@@ -50,13 +57,15 @@ class WsManager {
     RetryPolicy retryPolicy = const DefaultReconnectPolicy(),
     WsChannelFactory? connect,
     Duration pingInterval = const Duration(seconds: 20),
+    Duration staleTimeout = const Duration(seconds: 60),
   })  : _getUri = getUri,
         _authMessageFactory = authMessageFactory,
         _wsService = wsService,
         _protocol = protocol,
         _retryPolicy = retryPolicy,
         _connect = connect ?? WebSocketChannel.connect,
-        _pingInterval = pingInterval;
+        _pingInterval = pingInterval,
+        _staleTimeout = staleTimeout;
 
   WsConnectionState get state => _state;
 
@@ -74,6 +83,7 @@ class WsManager {
     _stopped = true;
     _retryTimer?.cancel();
     _pingTimer?.cancel();
+    _staleTimer?.cancel();
     await _subscription?.cancel();
     _subscription = null;
     await _channel?.sink.close();
@@ -108,6 +118,7 @@ class WsManager {
   }
 
   void _onData(Object? raw) {
+    _armStaleTimer();
     if (raw is! String) return;
     final WsFrame frame;
     try {
@@ -138,7 +149,18 @@ class WsManager {
       _pingInterval,
       (_) => _sendRaw(_protocol.pingMessage()),
     );
+    _armStaleTimer();
     _wsService.onConnected(_send);
+  }
+
+  /// Restarts the silence watchdog. Called on every inbound frame, so the
+  /// periodic ping's pong alone keeps an idle connection alive.
+  void _armStaleTimer() {
+    _staleTimer?.cancel();
+    _staleTimer = Timer(_staleTimeout, () {
+      unawaited(_channel?.sink.close());
+      _onChannelLost();
+    });
   }
 
   void _send(Map<String, Object?> message) => _sendRaw(message);
@@ -151,6 +173,7 @@ class WsManager {
     if (_stopped || _handlingLoss) return;
     _handlingLoss = true;
     _pingTimer?.cancel();
+    _staleTimer?.cancel();
     unawaited(_subscription?.cancel());
     _subscription = null;
     _channel = null;

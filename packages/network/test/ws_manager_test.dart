@@ -140,6 +140,7 @@ void main() {
     WsManager createManager({
       RetryPolicy retryPolicy = const ImmediateRetryPolicy(),
       Duration pingInterval = const Duration(minutes: 1),
+      Duration staleTimeout = const Duration(minutes: 1),
     }) {
       channels = [];
       wsService = WsService(const _TestProtocol());
@@ -153,6 +154,7 @@ void main() {
         protocol: const _TestProtocol(),
         retryPolicy: retryPolicy,
         pingInterval: pingInterval,
+        staleTimeout: staleTimeout,
         connect: (_) {
           final fake = FakeWebSocketChannel();
           channels.add(fake);
@@ -262,6 +264,35 @@ void main() {
       ]);
       channels.last.emitAuthSuccess();
       await Future<void>.delayed(Duration.zero);
+      expect(manager.state, WsConnectionState.connected);
+      manager.dispose();
+    });
+
+    test('rebuilds the connection when the socket goes silent', () async {
+      final manager =
+          createManager(staleTimeout: const Duration(milliseconds: 30));
+
+      await manager.start();
+      channel().emitAuthSuccess();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(channels, hasLength(2));
+      expect(channels.first.closed, isTrue);
+      manager.dispose();
+    });
+
+    test('inbound frames keep the silence watchdog from firing', () async {
+      final manager =
+          createManager(staleTimeout: const Duration(milliseconds: 40));
+
+      await manager.start();
+      channel().emitAuthSuccess();
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        channel().emit({'op': 'pong'});
+      }
+
+      expect(channels, hasLength(1));
       expect(manager.state, WsConnectionState.connected);
       manager.dispose();
     });
