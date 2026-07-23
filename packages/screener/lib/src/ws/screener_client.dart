@@ -28,7 +28,11 @@ class ScreenerClient {
   final Duration _pingInterval;
   final Random _random;
 
-  ClientConfig _clientConfig;
+  /// The filter set this client explicitly wants, or `null` when it has none
+  /// yet and should keep whatever the server is currently running (the
+  /// config pushed on connect / echoed by `subscribed`). Set once the caller
+  /// calls [reconfigure] (or passes one to the constructor).
+  ClientConfig? _explicitConfig;
 
   /// Max concurrent chart watches per session (server-enforced too).
   static const maxWatches = 3;
@@ -65,13 +69,13 @@ class ScreenerClient {
 
   ScreenerClient({
     required ScreenerConfig config,
-    ClientConfig clientConfig = const ClientConfig(),
+    ClientConfig? clientConfig,
     ScreenerChannelFactory? connect,
     RetryPolicy retryPolicy = const DefaultReconnectPolicy(),
     Duration pingInterval = const Duration(seconds: 25),
     Random? random,
   })  : _config = config,
-        _clientConfig = clientConfig,
+        _explicitConfig = clientConfig,
         _connect = connect ?? WebSocketChannel.connect,
         _retryPolicy = retryPolicy,
         _pingInterval = pingInterval,
@@ -96,7 +100,11 @@ class ScreenerClient {
   /// Consumers filter by instrument.
   Stream<ScreenerServerMessage> get watchUpdates => _watchUpdates.stream;
 
-  ClientConfig get clientConfig => _clientConfig;
+  /// The currently active filter set: this client's explicit override if it
+  /// has one, else the server's own config (from the pre-subscribe `config`
+  /// push or the `subscribed` ack), with all defaults filled in.
+  ClientConfig get clientConfig =>
+      _explicitConfig ?? ClientConfig.fromJson(_effectiveConfig.value ?? const {});
 
   /// Starts a live chart watch for [instrument], pinned to the
   /// [longExchange]/[shortExchange] pair (from the tapped signal: long =
@@ -169,10 +177,13 @@ class ScreenerClient {
     _setState(WsConnectionState.disconnected);
   }
 
-  /// Re-subscribes with a new filter set. The server rebuilds the session's
-  /// screening engine and replies with a fresh `subscribed` ack.
+  /// Re-subscribes with a new, explicit filter set. Config is now shared
+  /// server-wide (not per-session), so this replaces the server's persisted
+  /// config wholesale and every future `subscribe` (incl. after a reconnect)
+  /// resends it. The server rebuilds the screening engine and replies with a
+  /// fresh `subscribed` ack.
   void reconfigure(ClientConfig config) {
-    _clientConfig = config;
+    _explicitConfig = config;
     if (_state.value == WsConnectionState.connected) _sendSubscribe();
   }
 
@@ -225,6 +236,10 @@ class ScreenerClient {
     }
 
     switch (message) {
+      case ScreenerConfigPush(:final config):
+        // Pushed immediately on connect, before our `subscribe` is acked, so
+        // the UI has something to show even before `subscribed` arrives.
+        _effectiveConfig.value = config;
       case ScreenerSubscribed(:final effectiveConfig):
         _effectiveConfig.value = effectiveConfig;
         _onConnected();
@@ -269,11 +284,19 @@ class ScreenerClient {
 
   /// An empty token is sent as JSON `null` — the shape the server expects from
   /// an unauthenticated (local) client.
-  void _sendSubscribe() => _send({
-        'type': 'subscribe',
-        'token': _config.token.isEmpty ? null : _config.token,
-        'config': _clientConfig.toJson(),
-      });
+  ///
+  /// Omits `config` entirely when this client has no explicit override, so
+  /// the server keeps its own persisted (shared) config instead of it being
+  /// wholesale-replaced by compiled defaults on every fresh connection.
+  void _sendSubscribe() {
+    final message = <String, Object?>{
+      'type': 'subscribe',
+      'token': _config.token.isEmpty ? null : _config.token,
+    };
+    final explicit = _explicitConfig;
+    if (explicit != null) message['config'] = explicit.toJson();
+    _send(message);
+  }
 
   void _send(Map<String, Object?> message) =>
       _channel?.sink.add(jsonEncode(message));

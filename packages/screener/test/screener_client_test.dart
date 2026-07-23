@@ -47,6 +47,39 @@ void main() {
     expect(channel.sent.single['token'], 'secret');
   });
 
+  test(
+      'a client with no explicit config omits the config key so the server '
+      'keeps its own persisted (shared) settings', () {
+    final channel = FakeWebSocketChannel();
+    final client = ScreenerClient(
+      config: const ScreenerConfig(),
+      connect: (_) => channel,
+    );
+    addTearDown(client.dispose);
+    client.start();
+    expect(channel.sent.single.containsKey('config'), isFalse);
+  });
+
+  test('the config push (pre-subscribe) populates effectiveConfig', () async {
+    final channel = FakeWebSocketChannel();
+    final client = ScreenerClient(
+      config: const ScreenerConfig(),
+      connect: (_) => channel,
+    );
+    addTearDown(client.dispose);
+    client.start();
+    channel.emit({
+      'type': 'config',
+      'config': {'quote': 'USDT', 'min_net_spread_pct': '0.02'},
+    });
+    await flush();
+    expect(client.effectiveConfig.value?['min_net_spread_pct'], '0.02');
+    // Not yet connected — that only happens once `subscribed` arrives.
+    expect(client.state.value, isNot(WsConnectionState.connected));
+    // No explicit override: clientConfig reflects the server-pushed values.
+    expect(client.clientConfig.minNetSpreadPct, '0.02');
+  });
+
   test('ScreenerConfig uses TLS for a remote host and plain for loopback', () {
     const remote = ScreenerConfig(host: 'arovit-screener.duckdns.org');
     expect(remote.wsUri.toString(), 'wss://arovit-screener.duckdns.org/ws');

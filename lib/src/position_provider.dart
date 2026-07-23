@@ -26,6 +26,7 @@ import 'package:crypto_position/src/keep_alive_service.dart';
 import 'package:crypto_position/src/notification_service.dart';
 import 'package:crypto_position/src/screener_service.dart';
 import 'package:crypto_position/src/tab_badge_service.dart';
+import 'package:crypto_position/src/trade/exchange_account_registry.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
@@ -189,6 +190,23 @@ class PositionProvider extends StatelessWidget {
               context.read<GateSessionService>().session.value?.tradeExecutor,
           ExchangeId.mexc: () =>
               context.read<MexcSessionService>().session.value?.tradeExecutor,
+        }),
+      ),
+      Provider<ExchangeAccountRegistry>(
+        create: (context) => ExchangeAccountRegistry(<
+          ExchangeId,
+          ExchangeAccountRepository? Function()
+        >{
+          ExchangeId.bybit: () =>
+              context.read<BybitSessionService>().session.value?.repository,
+          ExchangeId.okx: () =>
+              context.read<OkxSessionService>().session.value?.repository,
+          ExchangeId.bitget: () =>
+              context.read<BitgetSessionService>().session.value?.repository,
+          ExchangeId.gate: () =>
+              context.read<GateSessionService>().session.value?.repository,
+          ExchangeId.mexc: () =>
+              context.read<MexcSessionService>().session.value?.repository,
         }),
       ),
     ],

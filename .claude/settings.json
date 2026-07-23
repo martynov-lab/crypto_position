@@ -25,7 +25,11 @@
       "PowerShell(flutter analyze --no-pub)",
       "PowerShell(flutter build windows --debug)",
       "PowerShell(flutter build apk --debug)",
-      "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/screener/coin_chart_wm.dart)"
+      "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/screener/coin_chart_wm.dart)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(grep -n \"decimal\" /c/Users/arovit/Projects/crypto_position/packages/screener/pubspec.yaml; find / -iname \"decimal-*\" -path \"*hosted*\" 2>/dev/null | head -5)",
+      "Read(//c//**)",
+      "Bash(find / -iname \"*.dart\" -path \"*exchange*\" 2>/dev/null | grep -iE \"trade_executor|bitget|okx\" | grep -v \"/build/\" | grep -v \".dart_tool\")"
     ]
   }
 }

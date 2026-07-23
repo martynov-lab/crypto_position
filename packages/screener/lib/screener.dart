@@ -4,6 +4,7 @@ export 'src/models/instrument_coverage.dart';
 export 'src/models/signal_event.dart';
 export 'src/models/spread_downsample.dart';
 export 'src/models/spread_point.dart';
+export 'src/models/spread_range.dart';
 export 'src/models/summary_entry.dart';
 export 'src/models/watch_meta.dart';
 export 'src/rest/screener_rest_api.dart';

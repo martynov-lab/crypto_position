@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:crypto_position/src/market_data/exchange_id.dart';
+import 'package:crypto_position/src/trade/exchange_account_registry.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:exchange/exchange.dart';
 
@@ -25,6 +26,11 @@ class EntryLeg {
   /// Reference (mid) price, used to price the unwind order.
   final double refPrice;
 
+  /// Native-unit → base-asset multiplier (e.g. OKX/Gate contracts). Needed to
+  /// turn [qty]×[price] into a USDT notional for the margin check; `1` when
+  /// the exchange quotes directly in base units.
+  final double contractSize;
+
   /// Null when the leg is placeable; otherwise why it is not.
   final String? invalidReason;
 
@@ -37,6 +43,7 @@ class EntryLeg {
     required this.canaryQty,
     required this.canaryPrice,
     required this.refPrice,
+    this.contractSize = 1,
     this.invalidReason,
   });
 
@@ -93,27 +100,40 @@ class EntryReport {
 
 /// Drives the actual order flow for an [EntryPlan]: a zero-risk canary probe,
 /// then the symmetric entry with a best-effort unwind if only one leg lands.
+///
+/// Both the canary and the real entry also check each leg's account balance
+/// against the notional/leverage being requested (see [_insufficientMarginReason])
+/// — this is what previously let one leg fill while the other was rejected by
+/// the exchange itself for insufficient balance, forcing a same-instant
+/// unwind of the leg that did land.
 class ArbitrageEntryController {
   final TradeExecutorRegistry _registry;
+  final ExchangeAccountRegistry _accounts;
 
-  ArbitrageEntryController(this._registry);
+  /// Cushion added on top of the raw notional/leverage margin requirement —
+  /// covers taker fees, funding carry and price drift between this check and
+  /// the actual fill.
+  static const _marginSafetyMult = 1.05;
+
+  ArbitrageEntryController(this._registry, this._accounts);
 
   /// The live executor for [exchange], or null when no session is active.
   /// Used by callers to gate the entry UI before building a plan.
   TradeExecutor? executorFor(ExchangeId exchange) =>
       _registry.executor(exchange);
 
-  /// Probes each leg's exchange: confirms the key can trade, then places and
+  /// Probes each leg's exchange: confirms the key can trade and the account
+  /// has enough balance for the requested size/leverage, then places and
   /// immediately cancels a minimum-size limit order far from the market
   /// (post-only, so it never takes liquidity). Places nothing that could fill.
-  Future<CanaryReport> runCanary(EntryPlan plan) async {
+  Future<CanaryReport> runCanary(EntryPlan plan, {required double leverage}) async {
     final outcomes = await Future.wait(
-      [plan.long, plan.short].map(_canaryLeg),
+      [plan.long, plan.short].map((leg) => _canaryLeg(leg, leverage)),
     );
     return CanaryReport(outcomes);
   }
 
-  Future<LegOutcome> _canaryLeg(EntryLeg leg) async {
+  Future<LegOutcome> _canaryLeg(EntryLeg leg, double leverage) async {
     final executor = _registry.executor(leg.exchange);
     if (executor == null) {
       return LegOutcome(
@@ -139,6 +159,13 @@ class ArbitrageEntryController {
             message: 'нет права Trade',
           );
         }
+    }
+
+    // Checked here too (not just in execute()) so "Проверить" surfaces an
+    // insufficient-balance situation before the user risks capital on it.
+    final marginReason = await _insufficientMarginReason(leg, leverage);
+    if (marginReason != null) {
+      return LegOutcome(exchange: leg.exchange, ok: false, message: marginReason);
     }
 
     // Best-effort: hedge-mode accounts reject the one-way-shaped orders below,
@@ -171,6 +198,39 @@ class ArbitrageEntryController {
     }
   }
 
+  /// Checks [leg]'s exchange account balance against the margin the plan
+  /// would need at [leverage]. Returns a reason string when insufficient,
+  /// `null` when OK (or when it cannot be verified — a transient
+  /// balance-fetch error should not by itself block the user; the exchange's
+  /// own order-placement check remains the final authority).
+  ///
+  /// This is an approximation: it compares against the account's total USDT
+  /// wallet balance, not a true "free margin" figure, so it does not account
+  /// for margin already locked by other open positions on the same account.
+  Future<String?> _insufficientMarginReason(EntryLeg leg, double leverage) async {
+    if (leverage <= 0) return null;
+    final repo = _accounts.repository(leg.exchange);
+    if (repo == null) return null;
+    final result = await repo.fetchBalance();
+    if (result is! Ok<BalanceModel, Object>) return null;
+
+    final available = _usdtWalletBalance(result.value);
+    final notional = leg.qty * leg.price * leg.contractSize;
+    final required = notional / leverage * _marginSafetyMult;
+    if (available >= required) return null;
+    return 'недостаточно баланса на ${leg.exchange.label}: доступно '
+        '${available.toStringAsFixed(2)} USDT, нужно ~'
+        '${required.toStringAsFixed(2)} USDT под плечо '
+        '${leverage.toStringAsFixed(0)}x';
+  }
+
+  static double _usdtWalletBalance(BalanceModel balance) {
+    for (final coin in balance.coins) {
+      if (coin.coin.toUpperCase() == 'USDT') return coin.walletBalance;
+    }
+    return balance.totalWalletBalance;
+  }
+
   /// Sets leverage on both legs, then submits both limit orders as close to
   /// simultaneously as possible. If one leg is rejected while the other lands,
   /// unwinds the placed leg (cancel + reduce-only close) and flags the report.
@@ -182,6 +242,26 @@ class ArbitrageEntryController {
         legs: [],
         note: 'нет активной сессии на одной из бирж',
       );
+    }
+
+    // Re-checked here (not just in the "Проверить" canary) since balance can
+    // have moved since then, and this is the last point before any order is
+    // placed — catches exactly the failure mode where one leg fills and the
+    // other is rejected by the exchange for insufficient balance, which would
+    // otherwise only surface after already needing a same-instant unwind.
+    final marginReasons = await Future.wait([
+      _insufficientMarginReason(plan.long, leverage),
+      _insufficientMarginReason(plan.short, leverage),
+    ]);
+    for (var i = 0; i < marginReasons.length; i++) {
+      final reason = marginReasons[i];
+      if (reason != null) {
+        final leg = i == 0 ? plan.long : plan.short;
+        return EntryReport(
+          legs: [LegOutcome(exchange: leg.exchange, ok: false, message: reason)],
+          note: 'вход не начат — недостаточно баланса',
+        );
+      }
     }
 
     // Best-effort one-way mode on both legs (see _canaryLeg for rationale).

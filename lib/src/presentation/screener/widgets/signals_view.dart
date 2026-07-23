@@ -193,6 +193,14 @@ class _SignalCard extends StatelessWidget {
     final spread = event.spread;
     final theme = Theme.of(context);
     return Card(
+      // Alert-level signals (crossed alert_net_spread_pct) get a highlighted
+      // border — info-level ones (list-only, no notification) stay plain.
+      shape: event.isAlert
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.error, width: 1.5),
+            )
+          : null,
       child: InkWell(
         onTap: () => onTap(context, spread.instrument, spread.buyExchange,
             spread.sellExchange),
@@ -211,7 +219,12 @@ class _SignalCard extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
-                if (event.qualityScore != null) _QualityChip(event.qualityScore!),
+                if (event.isAlert) ...[
+                  const _AlertChip(),
+                  const SizedBox(width: 6),
+                ],
+                if (event.qualityScore != null)
+                  _QualityChip(event.qualityScore!),
               ],
             ),
             const SizedBox(height: 6),
@@ -220,8 +233,8 @@ class _SignalCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'купить ${spread.buyExchange} @ ${spread.vwapBuy}\n'
-                    'продать ${spread.sellExchange} @ ${spread.vwapSell}',
+                    'купить ${spread.buyExchange} @ ${Decimals.amount(spread.vwapBuy)}\n'
+                    'продать ${spread.sellExchange} @ ${Decimals.amount(spread.vwapSell)}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -231,10 +244,23 @@ class _SignalCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _PercentLabel(fraction: spread.roundTripPct, large: true),
-                    Text(
-                      'вход ${Decimals.percent(spread.netPct)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.outline),
+                    Tooltip(
+                      message:
+                          'Спред на входе в сделку — без учёта комиссий и '
+                          'условий закрытия. Крупная цифра выше — прибыль за '
+                          'весь круг (вход и выход, все комиссии, фандинг): '
+                          'ориентируйтесь на неё, а не на эту.',
+                      triggerMode: TooltipTriggerMode.tap,
+                      showDuration: const Duration(seconds: 8),
+                      child: Text(
+                        'вход ${Decimals.percent(spread.netPct)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          decoration: TextDecoration.underline,
+                          decorationStyle: TextDecorationStyle.dotted,
+                          decorationColor: theme.colorScheme.outline,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -245,11 +271,18 @@ class _SignalCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                _Tag('объём ${spread.executableNotional}'),
+                _Tag('объём ${Decimals.amount(spread.executableNotional)}'),
                 if (spread.expectedProfitQuote.isNotEmpty)
-                  _Tag('~${spread.expectedProfitQuote} USDT'),
+                  _Tag('~${Decimals.amount(spread.expectedProfitQuote)} USDT'),
                 if (spread.cappedByDepth)
-                  const _Tag('ограничено глубиной', warning: true),
+                  const _Tag(
+                    'мало объёма в стакане',
+                    warning: true,
+                    tooltip:
+                        'В стакане недостаточно объёма по нужной цене, чтобы '
+                        'исполнить сделку на весь расчётный объём — реальный '
+                        'объём и прибыль могут оказаться меньше показанных.',
+                  ),
                 if (event.funding != null)
                   _Tag(
                     'funding ${Decimals.percent(event.funding!.diffApr)} '
@@ -277,13 +310,33 @@ class _DynamicsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall;
-    return Text(
-      'база ${Decimals.percent(dynamics.baselinePct)} → '
-      'сейчас ${Decimals.percent(dynamics.currentPct)}  ·  '
-      'z ${dynamics.zScore}  ·  '
-      'эпизод ${(dynamics.episodeMs / 1000).toStringAsFixed(1)}с  ·  '
-      'n=${dynamics.sampleCount}/база ${dynamics.baselineSamples}',
-      style: style?.copyWith(color: Theme.of(context).colorScheme.outline),
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final episodeSec = (dynamics.episodeMs / 1000).toStringAsFixed(1);
+    final spikeStrength = Decimals.amount(dynamics.zScore);
+    return Tooltip(
+      message:
+          '«Обычно» — типичный спред этой монеты в спокойное время. '
+          '«Сейчас» — спред в этот момент. «Держится» — сколько секунд он уже '
+          'расширен. «Сила всплеска» показывает, насколько сильно текущий '
+          'спред отличается от обычного — чем выше число, тем более '
+          'выраженный и вероятно настоящий скачок, а не случайный шум. '
+          'Посчитано по ${dynamics.sampleCount} последним замерам, из них '
+          '${dynamics.baselineSamples} использованы для расчёта «обычного» '
+          'уровня.',
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 10),
+      child: Text(
+        'Обычно ~${Decimals.percent(dynamics.baselinePct)} → '
+        'сейчас ${Decimals.percent(dynamics.currentPct)}  ·  '
+        'держится $episodeSec с  ·  '
+        'сила всплеска $spikeStrength',
+        style: style?.copyWith(
+          color: color,
+          decoration: TextDecoration.underline,
+          decorationStyle: TextDecorationStyle.dotted,
+          decorationColor: Theme.of(context).colorScheme.outline,
+        ),
+      ),
     );
   }
 }
@@ -308,6 +361,32 @@ class _PercentLabel extends StatelessWidget {
   }
 }
 
+/// Marks a signal that crossed `alert_net_spread_pct` — the level the client
+/// notifies on (vs. `info`, list-only).
+class _AlertChip extends StatelessWidget {
+  const _AlertChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.error,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        'ALERT',
+        style: TextStyle(
+          color: scheme.onError,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
 class _QualityChip extends StatelessWidget {
   final String score;
 
@@ -315,17 +394,28 @@ class _QualityChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        'Q $score',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
-          fontWeight: FontWeight.w600,
+    final rounded = double.tryParse(score)?.round().toString() ?? score;
+    return Tooltip(
+      message:
+          'Оценка качества сигнала от 0 до 100. Учитывает: прибыль за круг '
+          'и доступный объём (важнее всего), силу всплеска спреда, '
+          'стабильность обычного уровня спреда, свежесть котировок и '
+          'число бирж, где торгуется монета. Чем выше число — тем надёжнее '
+          'возможность.',
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          'Качество $rounded',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -336,20 +426,30 @@ class _Tag extends StatelessWidget {
   final String text;
   final bool warning;
 
-  const _Tag(this.text, {this.warning = false});
+  /// When set, tapping the tag shows a plain-language explanation.
+  final String? tooltip;
+
+  const _Tag(this.text, {this.warning = false, this.tooltip});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bg = warning ? scheme.errorContainer : scheme.surfaceContainerHighest;
     final fg = warning ? scheme.onErrorContainer : scheme.onSurfaceVariant;
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(text, style: TextStyle(fontSize: 12, color: fg)),
+    );
+    if (tooltip == null) return chip;
+    return Tooltip(
+      message: tooltip,
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 8),
+      child: chip,
     );
   }
 }

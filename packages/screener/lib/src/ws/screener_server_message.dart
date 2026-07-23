@@ -16,6 +16,11 @@ sealed class ScreenerServerMessage {
     if (decoded is! Map) return const ScreenerUnknown();
     final json = decoded.cast<String, Object?>();
     switch (json['type']) {
+      case 'config':
+        final config = json['config'];
+        return ScreenerConfigPush(
+          config is Map ? config.cast<String, Object?>() : const {},
+        );
       case 'subscribed':
         final config = json['config'];
         return ScreenerSubscribed(
@@ -60,6 +65,14 @@ sealed class ScreenerServerMessage {
         return const ScreenerUnknown();
     }
   }
+}
+
+/// The server's currently persisted (shared) config, pushed immediately on
+/// connect — before the client sends `subscribe` — so the client can decide
+/// whether to keep it (omit `config` on `subscribe`) or override it.
+class ScreenerConfigPush extends ScreenerServerMessage {
+  final Map<String, Object?> config;
+  const ScreenerConfigPush(this.config);
 }
 
 /// Handshake ack; carries the *effective* config with all defaults filled in.

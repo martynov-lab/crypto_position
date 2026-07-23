@@ -1,9 +1,11 @@
+import 'package:core/core.dart';
 import 'package:crypto_position/src/market_data/exchange_id.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_wm.dart'
     show SpreadSample, kTimeframesMin;
 import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_wm.dart';
+import 'package:crypto_position/src/presentation/screener/widgets/spread_range_chart.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +44,18 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
   @override
   Widget build(CoinChartWm wm) {
     return Scaffold(
-      appBar: AppBar(title: Text('${wm.instrument.pair} · спред')),
+      appBar: AppBar(
+        title: Text('${wm.instrument.pair} · спред'),
+        actions: [
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'История за 3 дня',
+              onPressed: () => _showSpreadRange(context, wm),
+            ),
+          ),
+        ],
+      ),
       body: ValueListenableBuilder<bool>(
         valueListenable: wm.capExceeded,
         builder: (context, capExceeded, _) {
@@ -125,6 +138,56 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
             },
           );
         },
+      ),
+    );
+  }
+
+  /// Opens a bottom sheet with the coarse, up-to-3-day min/max/close spread
+  /// history (`GET /spread/range`) — how wide this coin's spread even gets,
+  /// separate from the live ~30 min chart above.
+  void _showSpreadRange(BuildContext context, CoinChartWm wm) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${wm.instrument.pair} · спред за 3 дня',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Минимум/максимум/закрытие по минутам. Копится с момента '
+                'запуска сервера и не хранится по отдельным биржам.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 240,
+                child: FutureBuilder<Result<SpreadRange, Object>>(
+                  future: wm.fetchSpreadRange(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return snapshot.data!.fold(
+                      (range) => range.buckets.isEmpty
+                          ? const Center(child: Text('Нет данных'))
+                          : SpreadRangeChart(buckets: range.buckets),
+                      (error) => Center(child: Text('Ошибка: $error')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

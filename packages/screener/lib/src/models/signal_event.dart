@@ -186,6 +186,12 @@ class SignalEvent {
   /// Sent on every event now (neutral terms during warmup), so a missing score
   /// no longer means "warming up" — use [SpreadDynamics.baselineSamples].
   final String? qualityScore;
+
+  /// Two-level classification: `"info"` crossed `min_net_spread_pct` (list
+  /// only, do not notify); `"alert"` crossed `alert_net_spread_pct` (show
+  /// prominently and notify). The info→alert upgrade of an open episode is
+  /// pushed immediately, once per episode.
+  final String level;
   final int tsMs;
 
   const SignalEvent({
@@ -194,7 +200,11 @@ class SignalEvent {
     this.funding,
     this.dynamics,
     this.qualityScore,
+    this.level = 'info',
   });
+
+  /// Gate notifications/prominent marking on this, not on plain arrival.
+  bool get isAlert => level == 'alert';
 
   Instrument get instrument => spread.instrument;
 
@@ -218,6 +228,7 @@ class SignalEvent {
           ? SpreadDynamics.fromJson(dynamics.cast<String, Object?>())
           : null,
       qualityScore: quality == null ? null : Decimals.str(quality),
+      level: json['level']?.toString() ?? 'info',
       tsMs: (json['ts_ms'] as num?)?.toInt() ?? 0,
     );
   }

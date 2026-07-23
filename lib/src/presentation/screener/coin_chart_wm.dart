@@ -1,3 +1,4 @@
+import 'package:core/core.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_wm.dart'
     show kTimeframesMin;
 import 'package:crypto_position/src/presentation/screener/coin_chart_model.dart';
@@ -47,6 +48,11 @@ class CoinChartWm extends WidgetModel<CoinChartScreen, CoinChartModel> {
   int get windowMs => _controller.windowMs;
 
   void setTimeframe(int bucketMs) => _bucketMs.value = bucketMs;
+
+  /// `GET /spread/range` for this instrument — up to several days of
+  /// per-minute min/max/close, for the "3 days" view.
+  Future<Result<SpreadRange, Object>> fetchSpreadRange() =>
+      _service.fetchSpreadRange(instrument);
 
   @override
   void initWidgetModel() {

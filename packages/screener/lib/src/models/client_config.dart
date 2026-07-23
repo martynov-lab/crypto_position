@@ -1,3 +1,5 @@
+import 'decimals.dart';
+
 /// Documented server-side defaults for [ClientConfig] (integration guide §3).
 ///
 /// Used to seed the filters UI so the user sees the effective values before
@@ -7,10 +9,11 @@ class ScreenerDefaults {
 
   static const quote = 'USDT';
   static const minNetSpreadPct = '0.006';
+  static const alertNetSpreadPct = '0.01';
   static const maxNetSpreadPct = '0.25';
   static const minRoundTripPct = '0.001';
   static const min24hQuoteVolume = '100000';
-  static const max24hQuoteVolume = '200000';
+  // No documented default: the volume ceiling is off unless the user sets one.
   static const marketPairs = [MarketPair.perpPerp];
   static const targetNotionalQ = '2000';
   static const minExecutableNotional = '500';
@@ -26,9 +29,11 @@ class ScreenerDefaults {
   static const enableDynamics = true;
   static const maxBaselineSpreadPct = '0.01';
   static const minSpikeZ = '3';
+  static const spikeBypassRoundTripMult = '2';
   static const maxSpreadDurationMs = 300000;
   static const minDynamicsSamples = 20;
   static const maxChartSpreadPct = '0.50';
+  static const historyWindowMs = 259200000;
   static const hysteresisStepPct = '0.005';
   static const minSignalLifetimeMs = 1500;
   static const cooldownMs = 2000;
@@ -91,6 +96,10 @@ class ClientConfig {
   /// explicit `"max_24h_quote_volume": null`.
   static const maxVolumeOff = '';
   final String? minNetSpreadPct;
+
+  /// The `alert`-level threshold: an entry spread at or above this crosses
+  /// from `info` (list-only) to `alert` (notify). Must be ≥ [minNetSpreadPct].
+  final String? alertNetSpreadPct;
   final String? maxNetSpreadPct;
 
   /// The real profitability gate: floor on `round_trip_pct` (entry minus the
@@ -118,6 +127,10 @@ class ClientConfig {
   final bool? enableDynamics;
   final String? maxBaselineSpreadPct;
   final String? minSpikeZ;
+
+  /// Round-trip edge ≥ `min_round_trip_pct × this` passes without a spike;
+  /// `null` (omitted) leaves the compiled default ("2") in effect.
+  final String? spikeBypassRoundTripMult;
   final int? maxSpreadDurationMs;
   final int? minDynamicsSamples;
   final String? maxChartSpreadPct;
@@ -125,6 +138,9 @@ class ClientConfig {
 
   /// Consecutive rejects before an episode closes and hysteresis re-arms.
   final int? episodeCloseTicks;
+
+  /// Longest `GET /spread/range` window this client will request.
+  final int? historyWindowMs;
   final int? minSignalLifetimeMs;
   final int? cooldownMs;
   final int? maxSignalsPerMin;
@@ -139,6 +155,7 @@ class ClientConfig {
     this.max24hQuoteVolume,
     this.minOpenInterest,
     this.minNetSpreadPct,
+    this.alertNetSpreadPct,
     this.maxNetSpreadPct,
     this.minRoundTripPct,
     this.targetNotionalQ,
@@ -156,11 +173,13 @@ class ClientConfig {
     this.enableDynamics,
     this.maxBaselineSpreadPct,
     this.minSpikeZ,
+    this.spikeBypassRoundTripMult,
     this.maxSpreadDurationMs,
     this.minDynamicsSamples,
     this.maxChartSpreadPct,
     this.hysteresisStepPct,
     this.episodeCloseTicks,
+    this.historyWindowMs,
     this.minSignalLifetimeMs,
     this.cooldownMs,
     this.maxSignalsPerMin,
@@ -188,6 +207,7 @@ class ClientConfig {
     }
     put('min_open_interest', minOpenInterest);
     put('min_net_spread_pct', minNetSpreadPct);
+    put('alert_net_spread_pct', alertNetSpreadPct);
     put('max_net_spread_pct', maxNetSpreadPct);
     put('min_round_trip_pct', minRoundTripPct);
     put('target_notional_q', targetNotionalQ);
@@ -205,14 +225,79 @@ class ClientConfig {
     put('enable_dynamics', enableDynamics);
     put('max_baseline_spread_pct', maxBaselineSpreadPct);
     put('min_spike_z', minSpikeZ);
+    put('spike_bypass_round_trip_mult', spikeBypassRoundTripMult);
     put('max_spread_duration_ms', maxSpreadDurationMs);
     put('min_dynamics_samples', minDynamicsSamples);
     put('max_chart_spread_pct', maxChartSpreadPct);
     put('hysteresis_step_pct', hysteresisStepPct);
     put('episode_close_ticks', episodeCloseTicks);
+    put('history_window_ms', historyWindowMs);
     put('min_signal_lifetime_ms', minSignalLifetimeMs);
     put('cooldown_ms', cooldownMs);
     put('max_signals_per_min', maxSignalsPerMin);
     return json;
+  }
+
+  /// Parses a full/effective config map — the WS handshake's `config` push,
+  /// a `subscribed` ack, or `GET /config` — back into a [ClientConfig] (e.g.
+  /// to seed the filters UI with what the server is actually running).
+  /// Unknown keys (like the per-venue `taker_fee` map) are ignored.
+  factory ClientConfig.fromJson(Map<String, Object?> json) {
+    List<String>? strList(Object? value) =>
+        value is List ? value.map((e) => e.toString()).toList() : null;
+    String? str(Object? value) => value == null ? null : Decimals.str(value);
+    int? intVal(Object? value) => (value as num?)?.toInt();
+    bool? boolVal(Object? value) => value as bool?;
+    List<MarketPair>? marketPairs(Object? value) => value is List
+        ? value
+            .whereType<Map>()
+            .map(
+              (e) => MarketPair(
+                buy: e['buy']?.toString() ?? 'perp',
+                sell: e['sell']?.toString() ?? 'perp',
+              ),
+            )
+            .toList()
+        : null;
+
+    return ClientConfig(
+      exchanges: strList(json['exchanges']),
+      quote: json['quote']?.toString(),
+      allowSymbols: strList(json['allow_symbols']),
+      denySymbols: strList(json['deny_symbols']),
+      marketPairs: marketPairs(json['market_pairs']),
+      min24hQuoteVolume: str(json['min_24h_quote_volume']),
+      max24hQuoteVolume: str(json['max_24h_quote_volume']),
+      minOpenInterest: str(json['min_open_interest']),
+      minNetSpreadPct: str(json['min_net_spread_pct']),
+      alertNetSpreadPct: str(json['alert_net_spread_pct']),
+      maxNetSpreadPct: str(json['max_net_spread_pct']),
+      minRoundTripPct: str(json['min_round_trip_pct']),
+      targetNotionalQ: str(json['target_notional_q']),
+      minExecutableNotional: str(json['min_executable_notional']),
+      depthLevelsN: intVal(json['depth_levels_n']),
+      includeFundingDiff: boolVal(json['include_funding_diff']),
+      minFundingDiffApr: str(json['min_funding_diff_apr']),
+      fundingHoldHours: str(json['funding_hold_hours']),
+      includeFundingCost: boolVal(json['include_funding_cost']),
+      requireTransferable: boolVal(json['require_transferable']),
+      requireCommonNetwork: boolVal(json['require_common_network']),
+      maxBookAgeMs: intVal(json['max_book_age_ms']),
+      maxLegSkewMs: intVal(json['max_leg_skew_ms']),
+      maxPriceDeviationPct: str(json['max_price_deviation_pct']),
+      enableDynamics: boolVal(json['enable_dynamics']),
+      maxBaselineSpreadPct: str(json['max_baseline_spread_pct']),
+      minSpikeZ: str(json['min_spike_z']),
+      spikeBypassRoundTripMult: str(json['spike_bypass_round_trip_mult']),
+      maxSpreadDurationMs: intVal(json['max_spread_duration_ms']),
+      minDynamicsSamples: intVal(json['min_dynamics_samples']),
+      maxChartSpreadPct: str(json['max_chart_spread_pct']),
+      hysteresisStepPct: str(json['hysteresis_step_pct']),
+      episodeCloseTicks: intVal(json['episode_close_ticks']),
+      historyWindowMs: intVal(json['history_window_ms']),
+      minSignalLifetimeMs: intVal(json['min_signal_lifetime_ms']),
+      cooldownMs: intVal(json['cooldown_ms']),
+      maxSignalsPerMin: intVal(json['max_signals_per_min']),
+    );
   }
 }

@@ -33,7 +33,17 @@ const _marketPairChoices = <(MarketPair, String)>[
   (MarketPair(buy: 'perp', sell: 'spot'), 'фьюч/спот'),
 ];
 
-class _FiltersViewState extends State<FiltersView> {
+class _FiltersViewState extends State<FiltersView>
+    with AutomaticKeepAliveClientMixin<FiltersView> {
+  // The form's edits live only in local state (`_text`/`_exchanges`), seeded
+  // once from `widget.initial` in initState. Without this mixin, TabBarView
+  // disposes this page once it scrolls far enough from the visible tab (no
+  // keep-alive by default) — reopening it then re-runs initState with
+  // `initial` frozen at whatever it was when ScreenerScreen last built (e.g.
+  // app start), silently discarding any filters applied since.
+  @override
+  bool get wantKeepAlive => true;
+
   late final Map<String, TextEditingController> _text;
   late final Set<String> _exchanges;
   late final Set<MarketPair> _marketPairs;
@@ -49,48 +59,64 @@ class _FiltersViewState extends State<FiltersView> {
     final config = widget.initial;
     _text = {
       'quote': TextEditingController(text: config.quote ?? ScreenerDefaults.quote),
-      'minNet': _seed(config.minNetSpreadPct, ScreenerDefaults.minNetSpreadPct),
-      'maxNet': _seed(config.maxNetSpreadPct, ScreenerDefaults.maxNetSpreadPct),
-      'minRoundTrip':
-          _seed(config.minRoundTripPct, ScreenerDefaults.minRoundTripPct),
+      // Percent fields: stored/sent as fractions ("0.006" = 0.6%), shown and
+      // edited here as plain percent numbers ("0.6") — friendlier to type.
+      'minNet':
+          _seedPercent(config.minNetSpreadPct, ScreenerDefaults.minNetSpreadPct),
+      'alertNet': _seedPercent(
+          config.alertNetSpreadPct, ScreenerDefaults.alertNetSpreadPct),
+      'maxNet':
+          _seedPercent(config.maxNetSpreadPct, ScreenerDefaults.maxNetSpreadPct),
+      'minRoundTrip': _seedPercent(
+          config.minRoundTripPct, ScreenerDefaults.minRoundTripPct),
       'targetNotional':
           _seed(config.targetNotionalQ, ScreenerDefaults.targetNotionalQ),
       'minExecutable': _seed(
           config.minExecutableNotional, ScreenerDefaults.minExecutableNotional),
       'depthLevels': _seed(config.depthLevelsN, ScreenerDefaults.depthLevelsN),
-      'maxBookAge': _seed(config.maxBookAgeMs, ScreenerDefaults.maxBookAgeMs),
-      'maxLegSkew': _seed(config.maxLegSkewMs, ScreenerDefaults.maxLegSkewMs),
-      'maxPriceDeviation': _seed(
+      // Millisecond fields: stored/sent as ms, shown and edited in seconds.
+      'maxBookAge':
+          _seedSeconds(config.maxBookAgeMs, ScreenerDefaults.maxBookAgeMs),
+      'maxLegSkew':
+          _seedSeconds(config.maxLegSkewMs, ScreenerDefaults.maxLegSkewMs),
+      'maxPriceDeviation': _seedPercent(
           config.maxPriceDeviationPct, ScreenerDefaults.maxPriceDeviationPct),
-      'minFundingApr':
-          _seed(config.minFundingDiffApr, ScreenerDefaults.minFundingDiffApr),
+      'minFundingApr': _seedPercent(
+          config.minFundingDiffApr, ScreenerDefaults.minFundingDiffApr),
       'fundingHold':
           _seed(config.fundingHoldHours, ScreenerDefaults.fundingHoldHours),
-      'maxBaseline': _seed(
+      'maxBaseline': _seedPercent(
           config.maxBaselineSpreadPct, ScreenerDefaults.maxBaselineSpreadPct),
       'minSpikeZ': _seed(config.minSpikeZ, ScreenerDefaults.minSpikeZ),
-      'maxSpreadDuration': _seed(
+      'spikeBypassMult': _seed(
+          config.spikeBypassRoundTripMult,
+          ScreenerDefaults.spikeBypassRoundTripMult),
+      'maxSpreadDuration': _seedSeconds(
           config.maxSpreadDurationMs, ScreenerDefaults.maxSpreadDurationMs),
       'minSamples':
           _seed(config.minDynamicsSamples, ScreenerDefaults.minDynamicsSamples),
-      'maxChartSpread':
-          _seed(config.maxChartSpreadPct, ScreenerDefaults.maxChartSpreadPct),
-      'hysteresis':
-          _seed(config.hysteresisStepPct, ScreenerDefaults.hysteresisStepPct),
+      'maxChartSpread': _seedPercent(
+          config.maxChartSpreadPct, ScreenerDefaults.maxChartSpreadPct),
+      // Shown in days (the server retention/query window is measured in
+      // days-scale spans, e.g. the 3-day default), sent as ms.
+      'historyWindow':
+          _seedDays(config.historyWindowMs, ScreenerDefaults.historyWindowMs),
+      'hysteresis': _seedPercent(
+          config.hysteresisStepPct, ScreenerDefaults.hysteresisStepPct),
       'episodeCloseTicks':
           _seed(config.episodeCloseTicks, ScreenerDefaults.episodeCloseTicks),
-      'minLifetime':
-          _seed(config.minSignalLifetimeMs, ScreenerDefaults.minSignalLifetimeMs),
-      'cooldown': _seed(config.cooldownMs, ScreenerDefaults.cooldownMs),
+      'minLifetime': _seedSeconds(
+          config.minSignalLifetimeMs, ScreenerDefaults.minSignalLifetimeMs),
+      'cooldown': _seedSeconds(config.cooldownMs, ScreenerDefaults.cooldownMs),
       'maxPerMin':
           _seed(config.maxSignalsPerMin, ScreenerDefaults.maxSignalsPerMin),
       'allow': TextEditingController(text: config.allowSymbols?.join(', ') ?? ''),
       'deny': TextEditingController(text: config.denySymbols?.join(', ') ?? ''),
       'minVolume':
           _seed(config.min24hQuoteVolume, ScreenerDefaults.min24hQuoteVolume),
-      // `maxVolumeOff` ('') round-trips as an empty field = ceiling off.
-      'maxVolume':
-          _seed(config.max24hQuoteVolume, ScreenerDefaults.max24hQuoteVolume),
+      // No documented default (ceiling off unless the user sets one);
+      // blank round-trips as `maxVolumeOff` = ceiling off.
+      'maxVolume': TextEditingController(text: config.max24hQuoteVolume ?? ''),
       'minOi': TextEditingController(text: config.minOpenInterest ?? ''),
     };
     _exchanges = {...(config.exchanges ?? ScreenerDefaults.allExchanges)};
@@ -108,6 +134,70 @@ class _FiltersViewState extends State<FiltersView> {
 
   static TextEditingController _seed(Object? fromConfig, Object defaultValue) =>
       TextEditingController(text: '${fromConfig ?? defaultValue}');
+
+  /// Seeds a percent field: the wire value is a fraction ("0.006" = 0.6%),
+  /// shown/edited here as a plain percent number ("0.6").
+  static TextEditingController _seedPercent(
+    String? fromConfig,
+    String defaultFraction,
+  ) =>
+      TextEditingController(
+        text: Decimals.toPercentInput(fromConfig) ??
+            Decimals.toPercentInput(defaultFraction)!,
+      );
+
+  /// Reads a percent field back to the wire fraction, or `null` if left blank.
+  static String? _readPercent(String text) => Decimals.fromPercentInput(text);
+
+  /// Seeds a millisecond field: the wire value is ms, shown/edited here in
+  /// seconds (may be fractional, e.g. 750 ms -> "0.75").
+  static TextEditingController _seedSeconds(int? fromConfigMs, int defaultMs) =>
+      TextEditingController(text: _msToSeconds(fromConfigMs ?? defaultMs));
+
+  static String _msToSeconds(int ms) {
+    if (ms % 1000 == 0) return (ms ~/ 1000).toString();
+    var s = (ms / 1000).toStringAsFixed(3);
+    if (s.contains('.')) {
+      s = s.replaceFirst(RegExp(r'0+$'), '');
+      s = s.replaceFirst(RegExp(r'\.$'), '');
+    }
+    return s;
+  }
+
+  /// Reads a seconds field back to whole milliseconds, or `null` if blank.
+  static int? _readSeconds(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    final seconds = double.tryParse(trimmed);
+    if (seconds == null) return null;
+    return (seconds * 1000).round();
+  }
+
+  static const _msPerDay = 86400000;
+
+  /// Seeds a millisecond field shown/edited in days (may be fractional, e.g.
+  /// half a day -> "0.5"). Used only for `history_window_ms`.
+  static TextEditingController _seedDays(int? fromConfigMs, int defaultMs) =>
+      TextEditingController(text: _msToDays(fromConfigMs ?? defaultMs));
+
+  static String _msToDays(int ms) {
+    if (ms % _msPerDay == 0) return (ms ~/ _msPerDay).toString();
+    var s = (ms / _msPerDay).toStringAsFixed(4);
+    if (s.contains('.')) {
+      s = s.replaceFirst(RegExp(r'0+$'), '');
+      s = s.replaceFirst(RegExp(r'\.$'), '');
+    }
+    return s;
+  }
+
+  /// Reads a days field back to whole milliseconds, or `null` if blank.
+  static int? _readDays(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    final days = double.tryParse(trimmed);
+    if (days == null) return null;
+    return (days * _msPerDay).round();
+  }
 
   /// Normalizes a user-typed symbol to its base asset: strips a `/QUOTE` or
   /// trailing `USDT` so "BBUSDT" / "BB/USDT" / "bb" all become "BB". The server
@@ -168,31 +258,34 @@ class _FiltersViewState extends State<FiltersView> {
       max24hQuoteVolume:
           str('maxVolume') ?? ClientConfig.maxVolumeOff,
       minOpenInterest: str('minOi'),
-      minNetSpreadPct: str('minNet'),
-      maxNetSpreadPct: str('maxNet'),
-      minRoundTripPct: str('minRoundTrip'),
+      minNetSpreadPct: _readPercent(_text['minNet']!.text),
+      alertNetSpreadPct: _readPercent(_text['alertNet']!.text),
+      maxNetSpreadPct: _readPercent(_text['maxNet']!.text),
+      minRoundTripPct: _readPercent(_text['minRoundTrip']!.text),
       targetNotionalQ: str('targetNotional'),
       minExecutableNotional: str('minExecutable'),
       depthLevelsN: intVal('depthLevels'),
       includeFundingDiff: _includeFunding,
-      minFundingDiffApr: str('minFundingApr'),
+      minFundingDiffApr: _readPercent(_text['minFundingApr']!.text),
       fundingHoldHours: str('fundingHold'),
       includeFundingCost: _includeFundingCost,
       requireTransferable: _requireTransferable,
       requireCommonNetwork: _requireCommonNetwork,
-      maxBookAgeMs: intVal('maxBookAge'),
-      maxLegSkewMs: intVal('maxLegSkew'),
-      maxPriceDeviationPct: str('maxPriceDeviation'),
+      maxBookAgeMs: _readSeconds(_text['maxBookAge']!.text),
+      maxLegSkewMs: _readSeconds(_text['maxLegSkew']!.text),
+      maxPriceDeviationPct: _readPercent(_text['maxPriceDeviation']!.text),
       enableDynamics: _enableDynamics,
-      maxBaselineSpreadPct: str('maxBaseline'),
+      maxBaselineSpreadPct: _readPercent(_text['maxBaseline']!.text),
       minSpikeZ: str('minSpikeZ'),
-      maxSpreadDurationMs: intVal('maxSpreadDuration'),
+      spikeBypassRoundTripMult: str('spikeBypassMult'),
+      maxSpreadDurationMs: _readSeconds(_text['maxSpreadDuration']!.text),
       minDynamicsSamples: intVal('minSamples'),
-      maxChartSpreadPct: str('maxChartSpread'),
-      hysteresisStepPct: str('hysteresis'),
+      maxChartSpreadPct: _readPercent(_text['maxChartSpread']!.text),
+      historyWindowMs: _readDays(_text['historyWindow']!.text),
+      hysteresisStepPct: _readPercent(_text['hysteresis']!.text),
       episodeCloseTicks: intVal('episodeCloseTicks'),
-      minSignalLifetimeMs: intVal('minLifetime'),
-      cooldownMs: intVal('cooldown'),
+      minSignalLifetimeMs: _readSeconds(_text['minLifetime']!.text),
+      cooldownMs: _readSeconds(_text['cooldown']!.text),
       maxSignalsPerMin: intVal('maxPerMin'),
     );
   }
@@ -217,6 +310,7 @@ class _FiltersViewState extends State<FiltersView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -257,16 +351,21 @@ class _FiltersViewState extends State<FiltersView> {
               ),
           ],
         ),
-        _section('Спред (доли, 0.03 = 3%)'),
-        _field('minRoundTrip', 'Мин. прибыль за круг (главный фильтр)'),
-        _field('minNet', 'Мин. чистый спред на входе'),
-        _field('maxNet', 'Макс. чистый спред (ghost cap)'),
+        _section('Спред'),
+        _field('minRoundTrip', 'Мин. прибыль за круг (главный фильтр)',
+            unit: '%'),
+        _field('minNet', 'Мин. чистый спред на входе (info)', unit: '%'),
+        _field('alertNet', 'Порог alert-уведомления', unit: '%'),
+        _field('maxNet', 'Макс. чистый спред (ghost cap)', unit: '%'),
         _field('targetNotional', 'Целевой объём VWAP (USDT)'),
         _field('minExecutable', 'Мин. исполнимый объём (USDT)'),
         _field('depthLevels', 'Уровней стакана для VWAP', number: true),
-        _field('maxBookAge', 'Макс. возраст стакана (мс)', number: true),
-        _field('maxLegSkew', 'Макс. разбег между ногами (мс)', number: true),
-        _field('maxPriceDeviation', 'Макс. отклонение цены от медианы'),
+        _field('maxBookAge', 'Макс. возраст стакана',
+            number: true, decimal: true, unit: 'с'),
+        _field('maxLegSkew', 'Макс. разбег между ногами',
+            number: true, decimal: true, unit: 'с'),
+        _field('maxPriceDeviation', 'Макс. отклонение цены от медианы',
+            unit: '%'),
         _field('quote', 'Котируемый актив'),
         _section('Фандинг'),
         SwitchListTile(
@@ -274,7 +373,7 @@ class _FiltersViewState extends State<FiltersView> {
           value: _includeFunding,
           onChanged: (value) => setState(() => _includeFunding = value),
         ),
-        _field('minFundingApr', 'Мин. годовой фандинг-дифф'),
+        _field('minFundingApr', 'Мин. годовой фандинг-дифф', unit: '%'),
         _field('fundingHold', 'Часы удержания для фандинга'),
         SwitchListTile(
           title: const Text('Вычитать фандинг из прибыли круга'),
@@ -287,17 +386,24 @@ class _FiltersViewState extends State<FiltersView> {
           value: _enableDynamics,
           onChanged: (value) => setState(() => _enableDynamics = value),
         ),
-        _field('maxBaseline', 'Макс. базовый спред'),
+        _field('maxBaseline', 'Макс. базовый спред', unit: '%'),
         _field('minSpikeZ', 'Мин. z-скор всплеска'),
-        _field('maxSpreadDuration', 'Макс. длительность спреда (мс)', number: true),
+        _field('spikeBypassMult', 'Множитель обхода всплеска (сильная прибыль)'),
+        _field('maxSpreadDuration', 'Макс. длительность спреда',
+            number: true, decimal: true, unit: 'с'),
         _field('minSamples', 'Прогрев (сэмплов)', number: true),
-        _field('maxChartSpread', 'Макс. спред на графике (фильтр аномалий)'),
+        _field('maxChartSpread', 'Макс. спред на графике (фильтр аномалий)',
+            unit: '%'),
+        _field('historyWindow', 'Глубина длинной истории спреда (по умолчанию 3)',
+            number: true, decimal: true, unit: 'суток'),
         _section('Частота сигналов'),
-        _field('hysteresis', 'Шаг гистерезиса'),
+        _field('hysteresis', 'Шаг гистерезиса', unit: '%'),
         _field('episodeCloseTicks', 'Отказов подряд до закрытия эпизода',
             number: true),
-        _field('minLifetime', 'Мин. время жизни сигнала (мс)', number: true),
-        _field('cooldown', 'Пауза между сигналами (мс)', number: true),
+        _field('minLifetime', 'Мин. время жизни сигнала',
+            number: true, decimal: true, unit: 'с'),
+        _field('cooldown', 'Пауза между сигналами',
+            number: true, decimal: true, unit: 'с'),
         _field('maxPerMin', 'Лимит сигналов в минуту', number: true),
         _section('Символы и требования'),
         _field('allow', 'Allow-лист (базовый актив: BB, ETH)'),
@@ -342,7 +448,15 @@ class _FiltersViewState extends State<FiltersView> {
         child: Text(title, style: Theme.of(context).textTheme.titleSmall),
       );
 
-  Widget _field(String key, String label, {bool number = false}) {
+  Widget _field(
+    String key,
+    String label, {
+    bool number = false,
+    bool decimal = false,
+    // Shown inline in the field (not just the label) so the field's unit
+    // (%, seconds, days) is unambiguous regardless of the wire unit.
+    String? unit,
+  }) {
     final help = kFilterHelp[key];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -350,8 +464,24 @@ class _FiltersViewState extends State<FiltersView> {
         controller: _text[key],
         labelText: label,
         keyboardType: number
-            ? const TextInputType.numberWithOptions(decimal: false)
+            ? TextInputType.numberWithOptions(decimal: decimal)
             : TextInputType.text,
+        suffixIcon: unit == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  widthFactor: 1,
+                  child: Text(
+                    unit,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
         helpTooltip: help?.tooltip,
         onHelpPressed: help == null ? null : () => _showHelp(help),
       ),

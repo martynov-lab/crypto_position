@@ -9,6 +9,7 @@ import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_model.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_math.dart';
 import 'package:crypto_position/src/trade/arbitrage_entry_controller.dart';
+import 'package:crypto_position/src/trade/exchange_account_registry.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:elementary/elementary.dart';
 import 'package:exchange/exchange.dart';
@@ -635,6 +636,7 @@ class ArbitrageCalculatorWm
         canaryQty: longCanary.qty,
         canaryPrice: longCanary.price,
         refPrice: longMid,
+        contractSize: longInstr.contractSize ?? 1,
         invalidReason: _legInvalidReason(
           longEx,
           longQty,
@@ -651,6 +653,7 @@ class ArbitrageCalculatorWm
         canaryQty: shortCanary.qty,
         canaryPrice: shortCanary.price,
         refPrice: shortMid,
+        contractSize: shortInstr.contractSize ?? 1,
         invalidReason: _legInvalidReason(
           shortEx,
           shortQty,
@@ -691,7 +694,8 @@ class ArbitrageCalculatorWm
     _entryBusy.value = true;
     _canaryReport.value = null;
     try {
-      _canaryReport.value = await _entryController.runCanary(plan);
+      _canaryReport.value =
+          await _entryController.runCanary(plan, leverage: _leverage.value);
     } finally {
       _entryBusy.value = false;
     }
@@ -751,6 +755,7 @@ ArbitrageCalculatorWm arbitrageCalculatorWmFactory({
     feeStore: context.read<FeeSettingsStore>(),
     entryController: ArbitrageEntryController(
       context.read<TradeExecutorRegistry>(),
+      context.read<ExchangeAccountRegistry>(),
     ),
   );
 }

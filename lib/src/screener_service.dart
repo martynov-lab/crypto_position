@@ -107,6 +107,19 @@ class ScreenerService {
     ClientConfig config,
   ) => _rest.validateConfig(config);
 
+  /// `GET /spread/range` — up to several days of per-minute min/max/close
+  /// spread history for [instrument] ("how wide does this coin's spread even
+  /// get"). Omitting [windowMs] returns the client config's `history_window_ms`.
+  Future<Result<SpreadRange, Object>> fetchSpreadRange(
+    Instrument instrument, {
+    int? windowMs,
+  }) =>
+      _rest.fetchSpreadRange(
+        base: instrument.base,
+        quote: instrument.quote,
+        windowMs: windowMs,
+      );
+
   Future<void> refreshSummary() async {
     final result = await _rest.fetchSummary();
     result.fold((rows) => _summary.value = rows, (_) {});

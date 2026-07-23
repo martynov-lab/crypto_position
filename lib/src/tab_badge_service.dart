@@ -141,8 +141,12 @@ class TabBadgeService {
     }
   }
 
+  // Only `alert`-level signals badge/notify; `info` ones are list-only (they
+  // crossed `min_net_spread_pct` but not the `alert_net_spread_pct` the user
+  // actually wants to be interrupted for).
   void _onSignalsChanged() {
     final pairs = _screener.signals.value
+        .where((event) => event.isAlert)
         .map((event) => event.instrument.pair)
         .toSet();
     final newPairs = pairs.where((p) => !_seenPairs.contains(p)).toList();

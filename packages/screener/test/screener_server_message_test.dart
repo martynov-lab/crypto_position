@@ -9,6 +9,7 @@ void main() {
       const raw = '''
       {
         "type": "event",
+        "level": "alert",
         "spread": {
           "instrument": { "base": "ARB", "quote": "USDT", "kind": "perp" },
           "buy_exchange": "mexc",
@@ -54,10 +55,13 @@ void main() {
       expect(event.dynamics?.sampleCount, 120);
       expect(event.dynamics?.episodeMs, 1400);
       expect(event.qualityScore, '66.2');
+      expect(event.level, 'alert');
+      expect(event.isAlert, isTrue);
       expect(event.tsMs, 1752230400000);
     });
 
-    test('omits funding/dynamics/quality_score when absent', () {
+    test('omits funding/dynamics/quality_score when absent, defaults level '
+        'to info', () {
       const raw = '''
       {
         "type": "event",
@@ -75,6 +79,8 @@ void main() {
       expect(event.dynamics, isNull);
       expect(event.qualityScore, isNull);
       expect(event.spread.cappedByDepth, isTrue);
+      expect(event.level, 'info');
+      expect(event.isAlert, isFalse);
     });
 
     test('decodes universe rows', () {
@@ -88,6 +94,17 @@ void main() {
       expect(rows.single.pair, 'BTC/USDT');
       expect(rows.single.exchanges, ['bybit', 'okx']);
       expect(rows.single.coverage, 2);
+    });
+
+    test('decodes the pre-subscribe config push', () {
+      final message = ScreenerServerMessage.decode(
+        '{"type":"config","config":{"quote":"USDT","min_net_spread_pct":"0.02"}}',
+      );
+      expect(message, isA<ScreenerConfigPush>());
+      expect(
+        (message as ScreenerConfigPush).config['min_net_spread_pct'],
+        '0.02',
+      );
     });
 
     test('decodes subscribed ack and error', () {
@@ -205,12 +222,110 @@ void main() {
       expect(off.toJson()['max_24h_quote_volume'], isNull);
       expect(const ClientConfig().toJson(), isEmpty);
     });
+
+    test('serializes the alert threshold, spike bypass and history window',
+        () {
+      const config = ClientConfig(
+        alertNetSpreadPct: '0.015',
+        spikeBypassRoundTripMult: '3',
+        historyWindowMs: 86400000,
+      );
+      expect(config.toJson(), {
+        'alert_net_spread_pct': '0.015',
+        'spike_bypass_round_trip_mult': '3',
+        'history_window_ms': 86400000,
+      });
+    });
+  });
+
+  group('ClientConfig.fromJson', () {
+    test('parses an effective config back, ignoring unknown keys', () {
+      final config = ClientConfig.fromJson({
+        'exchanges': ['bybit', 'okx'],
+        'quote': 'USDT',
+        'market_pairs': [
+          {'buy': 'perp', 'sell': 'perp'},
+        ],
+        'min_net_spread_pct': '0.006',
+        'alert_net_spread_pct': '0.01',
+        'max_24h_quote_volume': null,
+        'depth_levels_n': 20,
+        'include_funding_diff': true,
+        'max_signals_per_min': 120,
+        'taker_fee': {'bybit': '0.00055'},
+      });
+      expect(config.exchanges, ['bybit', 'okx']);
+      expect(config.quote, 'USDT');
+      expect(config.marketPairs, [MarketPair.perpPerp]);
+      expect(config.minNetSpreadPct, '0.006');
+      expect(config.alertNetSpreadPct, '0.01');
+      expect(config.max24hQuoteVolume, isNull);
+      expect(config.depthLevelsN, 20);
+      expect(config.includeFundingDiff, isTrue);
+      expect(config.maxSignalsPerMin, 120);
+    });
+
+    test('round-trips through toJson for a fully-set config', () {
+      const original = ClientConfig(
+        exchanges: ['bybit'],
+        minNetSpreadPct: '0.006',
+        alertNetSpreadPct: '0.01',
+        minRoundTripPct: '0.001',
+        spikeBypassRoundTripMult: '2',
+        historyWindowMs: 259200000,
+        maxSignalsPerMin: 120,
+      );
+      final roundTripped = ClientConfig.fromJson(original.toJson());
+      expect(roundTripped.toJson(), original.toJson());
+    });
+  });
+
+  group('Decimals.amount', () {
+    test('rounds to at most 5 decimal places and trims trailing zeros', () {
+      expect(Decimals.amount('1.234567891'), '1.23457');
+      expect(Decimals.amount('2000'), '2000');
+      expect(Decimals.amount('2000.00000'), '2000');
+      expect(Decimals.amount('1.234'), '1.234');
+      expect(Decimals.amount('49.20'), '49.2');
+    });
+
+    test('passes through unparsable input', () {
+      expect(Decimals.amount('abc'), 'abc');
+    });
   });
 
   group('Decimals.percent', () {
     test('formats a fraction string as a percent without float error', () {
       expect(Decimals.percent('0.0289'), '2.89%');
       expect(Decimals.percent('-0.0004', fractionDigits: 4), '-0.0400%');
+    });
+  });
+
+  group('Decimals percent-input round trip', () {
+    test('toPercentInput converts a wire fraction to a plain percent number', () {
+      expect(Decimals.toPercentInput('0.006'), '0.6');
+      expect(Decimals.toPercentInput('0.01'), '1');
+      expect(Decimals.toPercentInput(null), isNull);
+      expect(Decimals.toPercentInput(''), isNull);
+    });
+
+    test('fromPercentInput converts a typed percent back to a wire fraction',
+        () {
+      expect(Decimals.fromPercentInput('0.6'), '0.006');
+      expect(Decimals.fromPercentInput('1'), '0.01');
+      expect(Decimals.fromPercentInput(null), isNull);
+      expect(Decimals.fromPercentInput(''), isNull);
+      // Unparsable input passes through so server-side validation reports it.
+      expect(Decimals.fromPercentInput('abc'), 'abc');
+    });
+
+    test('round-trips to an equal value for typical spread-band values '
+        '(trailing zeros may normalize, e.g. "0.10" -> "0.1")', () {
+      for (final fraction in ['0.006', '0.01', '0.25', '0.10', '0.005']) {
+        final percent = Decimals.toPercentInput(fraction);
+        final roundTripped = Decimals.fromPercentInput(percent);
+        expect(Decimals.parse(roundTripped), Decimals.parse(fraction));
+      }
     });
   });
 }

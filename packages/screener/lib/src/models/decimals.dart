@@ -32,4 +32,42 @@ class Decimals {
     final scaled = value * Decimal.fromInt(100);
     return '${scaled.toStringAsFixed(fractionDigits)}%';
   }
+
+  /// Converts a wire fraction decimal-string (e.g. `"0.006"`) to a plain
+  /// percent number-string for an editable field (e.g. `"0.6"`). Multiplying
+  /// by the exact `Decimal` 100 keeps this precision-safe, unlike `double`
+  /// math. `null`/unparsable input passes through as `null`.
+  static String? toPercentInput(String? raw) {
+    final value = parse(raw);
+    if (value == null) return null;
+    return (value * Decimal.fromInt(100)).toString();
+  }
+
+  /// Inverse of [toPercentInput]: a percent number typed by the user (e.g.
+  /// `"0.6"`) back to the fraction decimal-string the wire expects
+  /// (`"0.006"`). Unparsable input is passed through unchanged so the
+  /// server's own validation (not a silent client-side guess) reports it.
+  static String? fromPercentInput(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    final value = Decimal.tryParse(trimmed);
+    if (value == null) return trimmed;
+    return (value * Decimal.parse('0.01')).toString();
+  }
+
+  /// Formats a price/notional decimal-string for display, rounded to at most
+  /// [maxFractionDigits] decimal places (default 5) with trailing zeros
+  /// trimmed — display-only, never used for the value actually sent on the
+  /// wire. Returns the raw string if it is not a valid decimal.
+  static String amount(String raw, {int maxFractionDigits = 5}) {
+    final value = Decimal.tryParse(raw);
+    if (value == null) return raw;
+    var fixed = value.toStringAsFixed(maxFractionDigits);
+    if (fixed.contains('.')) {
+      fixed = fixed.replaceFirst(RegExp(r'0+$'), '');
+      fixed = fixed.replaceFirst(RegExp(r'\.$'), '');
+    }
+    return fixed;
+  }
 }

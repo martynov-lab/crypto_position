@@ -1,8 +1,10 @@
 import 'package:core/core.dart';
 import 'package:crypto_position/src/market_data/exchange_id.dart';
 import 'package:crypto_position/src/trade/arbitrage_entry_controller.dart';
+import 'package:crypto_position/src/trade/exchange_account_registry.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:exchange/exchange.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Records calls and returns configurable results.
@@ -69,6 +71,44 @@ class FakeExecutor implements TradeExecutor {
   }
 }
 
+/// Returns a configurable USDT wallet balance, large by default so existing
+/// tests aren't affected by the margin check unless they opt into a low one.
+class FakeAccountRepository implements ExchangeAccountRepository {
+  double usdtBalance;
+
+  FakeAccountRepository({this.usdtBalance = 1000000});
+
+  @override
+  ValueListenable<BalanceModel?> get balance => ValueNotifier(null);
+
+  @override
+  ValueListenable<List<PositionModel>?> get positions => ValueNotifier(null);
+
+  @override
+  Future<Result<BalanceModel, Object>> fetchBalance() async => Ok(
+        BalanceModel(
+          totalEquity: usdtBalance,
+          totalWalletBalance: usdtBalance,
+          coins: [
+            CoinBalanceModel(
+              coin: 'USDT',
+              equity: usdtBalance,
+              walletBalance: usdtBalance,
+              usdValue: usdtBalance,
+              unrealisedPnl: 0,
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Future<Result<List<PositionModel>, Object>> fetchPositions() async =>
+      const Ok([]);
+
+  @override
+  void dispose() {}
+}
+
 EntryPlan _plan() => const EntryPlan(
       long: EntryLeg(
         exchange: ExchangeId.bybit,
@@ -92,11 +132,20 @@ EntryPlan _plan() => const EntryPlan(
       ),
     );
 
-ArbitrageEntryController _controller(FakeExecutor long, FakeExecutor short) {
+ArbitrageEntryController _controller(
+  FakeExecutor long,
+  FakeExecutor short, {
+  FakeAccountRepository? longAccount,
+  FakeAccountRepository? shortAccount,
+}) {
   return ArbitrageEntryController(
     TradeExecutorRegistry({
       ExchangeId.bybit: () => long,
       ExchangeId.okx: () => short,
+    }),
+    ExchangeAccountRegistry({
+      ExchangeId.bybit: () => longAccount ?? FakeAccountRepository(),
+      ExchangeId.okx: () => shortAccount ?? FakeAccountRepository(),
     }),
   );
 }
@@ -107,7 +156,8 @@ void main() {
         () async {
       final long = FakeExecutor();
       final short = FakeExecutor();
-      final report = await _controller(long, short).runCanary(_plan());
+      final report =
+          await _controller(long, short).runCanary(_plan(), leverage: 5);
 
       expect(report.ok, isTrue);
       expect(long.placed.single.postOnly, isTrue);
@@ -118,9 +168,30 @@ void main() {
     test('fails the leg whose key cannot trade, placing no order', () async {
       final long = FakeExecutor();
       final short = FakeExecutor(canTrade: false);
-      final report = await _controller(long, short).runCanary(_plan());
+      final report =
+          await _controller(long, short).runCanary(_plan(), leverage: 5);
 
       expect(report.ok, isFalse);
+      expect(short.placed, isEmpty);
+    });
+
+    test('fails the leg whose account balance cannot cover the notional at '
+        'the requested leverage, placing no order', () async {
+      final long = FakeExecutor();
+      final short = FakeExecutor();
+      // Plan notional per leg is ~100-101 USDT; at 5x that needs ~20 USDT
+      // margin — 1 USDT of balance is nowhere close.
+      final report = await _controller(
+        long,
+        short,
+        shortAccount: FakeAccountRepository(usdtBalance: 1),
+      ).runCanary(_plan(), leverage: 5);
+
+      expect(report.ok, isFalse);
+      final shortOutcome =
+          report.legs.firstWhere((l) => l.exchange == ExchangeId.okx);
+      expect(shortOutcome.ok, isFalse);
+      expect(shortOutcome.message, contains('недостаточно баланса'));
       expect(short.placed, isEmpty);
     });
   });
@@ -166,6 +237,24 @@ void main() {
       // Only the entry attempts; no reduce-only unwind on either side.
       expect(long.placed.every((o) => !o.reduceOnly), isTrue);
       expect(short.placed.every((o) => !o.reduceOnly), isTrue);
+    });
+
+    test(
+        'insufficient balance on one leg aborts before either order is '
+        'placed — the bug this guards against: one leg filling while the '
+        'other is rejected by the exchange for insufficient balance', () async {
+      final long = FakeExecutor();
+      final short = FakeExecutor();
+      final report = await _controller(
+        long,
+        short,
+        shortAccount: FakeAccountRepository(usdtBalance: 1),
+      ).execute(_plan(), leverage: 5);
+
+      expect(report.ok, isFalse);
+      expect(report.unwound, isFalse);
+      expect(long.placed, isEmpty);
+      expect(short.placed, isEmpty);
     });
   });
 }
