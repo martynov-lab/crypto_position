@@ -2,6 +2,12 @@
     <!-- Exchange REST/WS calls and the screener socket. The debug/profile
          manifests declare this too, so its absence here only breaks release. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Local notifications (Android 13+) and the keep-alive foreground
+         service that holds the exchange/screener sockets in background. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="crypto_position"
         android:name="${applicationName}"
@@ -28,6 +34,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Keep-alive foreground service (flutter_foreground_task). -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

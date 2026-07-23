@@ -15,7 +15,17 @@
       "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/arbitrage_calculator/arbitrage_calculator.dart)",
       "PowerShell(dart analyze lib/src/position_provider.dart lib/src/tab_badge_service.dart lib/src/components/scaffold_with_nav_bar.dart)",
       "PowerShell(dart format lib/src/tab_badge_service.dart lib/src/components/scaffold_with_nav_bar.dart lib/src/position_provider.dart)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "PowerShell(flutter pub add flutter_local_notifications flutter_foreground_task)",
+      "Read(//c/Users/arovit/AppData/Local/Pub/Cache/**)",
+      "PowerShell([guid]::NewGuid\\(\\).ToString\\(\\))",
+      "PowerShell(dart analyze lib/src/notification_service.dart)",
+      "PowerShell(dart analyze lib/src/tab_badge_service.dart)",
+      "PowerShell(dart analyze lib/src/position_provider.dart lib/src/always_on_lifecycle_service.dart)",
+      "PowerShell(flutter analyze --no-pub)",
+      "PowerShell(flutter build windows --debug)",
+      "PowerShell(flutter build apk --debug)",
+      "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/screener/coin_chart_wm.dart)"
     ]
   }
 }

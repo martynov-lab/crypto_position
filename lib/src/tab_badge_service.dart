@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
 import 'package:crypto_position/src/mexc_session_service.dart';
+import 'package:crypto_position/src/notification_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/screener_service.dart';
 import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// Tracks "unseen" arrivals for the bottom-nav badges: Main lights up when a
 /// position opens while the user is on another tab, Screener when a signal
@@ -19,6 +23,7 @@ class TabBadgeService {
   static const screenerTabIndex = 3;
 
   final ScreenerService _screener;
+  final NotificationService _notifications;
   late final List<_PositionSource> _sources;
 
   final ValueNotifier<bool> _mainBadge = ValueNotifier(false);
@@ -43,7 +48,9 @@ class TabBadgeService {
     required GateSessionService gate,
     required MexcSessionService mexc,
     required ScreenerService screener,
-  }) : _screener = screener {
+    required NotificationService notifications,
+  }) : _screener = screener,
+       _notifications = notifications {
     _sources = [
       _PositionSource(
         'Bybit',
@@ -107,25 +114,58 @@ class TabBadgeService {
       _seenPositions.addAll(keys);
       return;
     }
-    final hasNew = keys.any((key) => !_seenPositions.contains(key));
+    final newPositions = positions
+        .where(
+          (p) => !_seenPositions.contains(
+            '${source.name}:${p.symbol}:${p.side}',
+          ),
+        )
+        .toList();
     _seenPositions
       ..removeWhere(
         (key) => key.startsWith('${source.name}:') && !keys.contains(key),
       )
       ..addAll(keys);
-    if (hasNew && _activeTab != mainTabIndex) _mainBadge.value = true;
+    if (newPositions.isEmpty) return;
+    if (_activeTab != mainTabIndex) _mainBadge.value = true;
+    if (_activeTab != mainTabIndex || !_appFocused) {
+      unawaited(
+        _notifications.show(
+          id: NotificationService.positionsNotificationId,
+          title: 'New position opened',
+          body: newPositions
+              .map((p) => '${source.name} ${p.symbol} ${p.side}')
+              .join(', '),
+        ),
+      );
+    }
   }
 
   void _onSignalsChanged() {
     final pairs = _screener.signals.value
         .map((event) => event.instrument.pair)
         .toSet();
-    final hasNew = pairs.any((pair) => !_seenPairs.contains(pair));
+    final newPairs = pairs.where((p) => !_seenPairs.contains(p)).toList();
     _seenPairs
       ..retainAll(pairs)
       ..addAll(pairs);
-    if (hasNew && _activeTab != screenerTabIndex) _screenerBadge.value = true;
+    if (newPairs.isEmpty) return;
+    if (_activeTab != screenerTabIndex) _screenerBadge.value = true;
+    if (_activeTab != screenerTabIndex || !_appFocused) {
+      unawaited(
+        _notifications.show(
+          id: NotificationService.signalsNotificationId,
+          title: 'New arbitrage signal',
+          body: newPairs.join(', '),
+        ),
+      );
+    }
   }
+
+  /// `resumed` only: on desktop an unfocused window reports `inactive`, which
+  /// is exactly when a toast is useful.
+  bool get _appFocused =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
   void dispose() {
     for (final source in _sources) {

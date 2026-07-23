@@ -21,6 +21,9 @@ import 'package:crypto_position/src/market_data/market_data_provider.dart';
 import 'package:crypto_position/src/market_data/market_data_registry.dart';
 import 'package:crypto_position/src/market_data/mexc_market_data.dart';
 import 'package:crypto_position/src/market_data/okx_market_data.dart';
+import 'package:crypto_position/src/always_on_lifecycle_service.dart';
+import 'package:crypto_position/src/keep_alive_service.dart';
+import 'package:crypto_position/src/notification_service.dart';
 import 'package:crypto_position/src/screener_service.dart';
 import 'package:crypto_position/src/tab_badge_service.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
@@ -77,8 +80,10 @@ class PositionProvider extends StatelessWidget {
             MexcAccountRepositoryFactory(context.read<MexcConfig>()),
       ),
       Provider<ReconnectionService>(
+        // Always-on lifecycle: sockets survive focus loss / backgrounding so
+        // background notifications keep receiving position events.
         create: (_) => ReconnectionService(
-          lifecycleService: AppLifecycleService(),
+          lifecycleService: const AlwaysOnLifecycleService(),
           connectionMonitor: ConnectivityMonitor(),
         ),
         dispose: (_, value) => value.dispose(),
@@ -127,6 +132,10 @@ class PositionProvider extends StatelessWidget {
         create: (_) => ScreenerService(),
         dispose: (_, value) => value.dispose(),
       ),
+      Provider<NotificationService>(
+        create: (_) => NotificationService()..init(),
+      ),
+      Provider<KeepAliveService>(create: (_) => KeepAliveService()),
       Provider<TabBadgeService>(
         create: (context) => TabBadgeService(
           bybit: context.read<BybitSessionService>(),
@@ -135,6 +144,7 @@ class PositionProvider extends StatelessWidget {
           gate: context.read<GateSessionService>(),
           mexc: context.read<MexcSessionService>(),
           screener: context.read<ScreenerService>(),
+          notifications: context.read<NotificationService>(),
         ),
         dispose: (_, value) => value.dispose(),
       ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
+import 'package:crypto_position/src/keep_alive_service.dart';
 import 'package:crypto_position/src/mexc_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/screener_service.dart';
@@ -20,6 +21,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
   final GateSessionService _gateSessionService;
   final MexcSessionService _mexcSessionService;
   final ScreenerService _screenerService;
+  final KeepAliveService _keepAliveService;
 
   CryptoAppWm(
     super.model, {
@@ -29,12 +31,14 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     required GateSessionService gateSessionService,
     required MexcSessionService mexcSessionService,
     required ScreenerService screenerService,
+    required KeepAliveService keepAliveService,
   })  : _bybitSessionService = bybitSessionService,
         _okxSessionService = okxSessionService,
         _bitgetSessionService = bitgetSessionService,
         _gateSessionService = gateSessionService,
         _mexcSessionService = mexcSessionService,
-        _screenerService = screenerService;
+        _screenerService = screenerService,
+        _keepAliveService = keepAliveService;
 
   @override
   void initWidgetModel() {
@@ -45,6 +49,7 @@ class CryptoAppWm extends WidgetModel<CryptoApp, CryptoAppModel> {
     unawaited(_gateSessionService.init());
     unawaited(_mexcSessionService.init());
     _screenerService.init();
+    unawaited(_keepAliveService.start());
   }
 }
 
@@ -57,5 +62,6 @@ CryptoAppWm cryptoAppWmFactory({required BuildContext context}) {
     gateSessionService: context.read<GateSessionService>(),
     mexcSessionService: context.read<MexcSessionService>(),
     screenerService: context.read<ScreenerService>(),
+    keepAliveService: context.read<KeepAliveService>(),
   );
 }
