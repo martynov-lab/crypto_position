@@ -1,6 +1,9 @@
+import 'package:crypto_position/src/market_data/exchange_id.dart';
+import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator.dart';
+import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_wm.dart'
+    show SpreadSample;
+import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_wm.dart';
-import 'package:crypto_position/src/presentation/screener/widgets/funding_panel.dart';
-import 'package:crypto_position/src/presentation/screener/widgets/spread_chart.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -65,32 +68,54 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                     valueListenable: wm.bucketMs,
                     builder: (context, bucket, _) {
                       final view = downsampleSpread(points, bucket);
-                      return Column(
+                      return ListView(
                         children: [
                           _Header(wm: wm, points: view, meta: meta),
                           _TimeframeSelector(
                             current: bucket,
                             onSelect: wm.setTimeframe,
                           ),
-                          Expanded(
-                            flex: 3,
+                          SizedBox(
+                            height: 320,
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(8, 8, 0, 4),
                               child: view.isEmpty
                                   ? _WaitingForData(
                                       connectionState: wm.connectionState,
                                     )
-                                  : SpreadChart(points: view),
+                                  : SpreadLineChart(
+                                      // Entry (In) spread as the single line;
+                                      // the wm already downsampled by bucket,
+                                      // so no extra bucketing in the chart.
+                                      series: [
+                                        for (final p in view)
+                                          if (Decimals.parse(p.entryPct)
+                                              case final v?)
+                                            SpreadSample(
+                                              p.tsMs,
+                                              v.toDouble() * 100,
+                                            ),
+                                      ],
+                                      timeframeMin: 0,
+                                      buyLabel: meta?.longExchange ??
+                                          wm.longExchange,
+                                      sellLabel: meta?.shortExchange ??
+                                          wm.shortExchange,
+                                    ),
                             ),
                           ),
-                          const _Legend(),
-                          if (_hasFunding(view, meta)) ...[
-                            const Divider(height: 1),
-                            SizedBox(
-                              height: 150,
-                              child: FundingPanel(points: view, meta: meta),
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: ArbitrageCalculator(
+                              embedded: true,
+                              initialBase: args.instrument.base,
+                              initialExchange1:
+                                  _exchangeByName(args.longExchange),
+                              initialExchange2:
+                                  _exchangeByName(args.shortExchange),
                             ),
-                          ],
+                          ),
                         ],
                       );
                     },
@@ -104,14 +129,16 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
     );
   }
 
-  static bool _hasFunding(List<SpreadPoint> points, WatchMeta? meta) {
-    if (meta?.fundingLongApr != null || meta?.fundingShortApr != null) {
-      return true;
+  /// Maps a screener exchange name (`bybit`, `okx`, …) to the app's
+  /// [ExchangeId] by its stable key; null when unknown.
+  static ExchangeId? _exchangeByName(String? name) {
+    final key = name?.toLowerCase();
+    for (final e in ExchangeId.values) {
+      if (e.key == key) return e;
     }
-    return points.any(
-      (p) => p.fundingLongPct != null || p.fundingShortPct != null,
-    );
+    return null;
   }
+
 }
 
 /// Pinned pair + current In/Out values above the chart.
@@ -256,46 +283,6 @@ class _TimeframeSelector extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  const _Legend();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 4,
-        children: [
-          _LegendItem(color: Colors.green, label: 'вход (In)'),
-          _LegendItem(color: Colors.red, label: 'выход (Out)'),
-          _LegendItem(color: scheme.error, label: 'ограничено глубиной'),
-        ],
-      ),
-    );
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _LegendItem({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(width: 12, height: 12, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ],
     );
   }
 }

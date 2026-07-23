@@ -86,10 +86,10 @@ void main() {
       }).toModel();
 
       expect(win.isProfitable, isTrue);
-      expect(win.tradeType, 'Закрыть шорт');
-      expect(win.resultLabel, 'Успешная сделка');
+      expect(win.tradeType, 'Шорт');
+      expect(win.resultLabel, 'Прибыль');
       expect(loss.isProfitable, isFalse);
-      expect(loss.tradeType, 'Закрыть лонг');
+      expect(loss.tradeType, 'Лонг');
       expect(loss.resultLabel, 'Убыток');
     });
   });

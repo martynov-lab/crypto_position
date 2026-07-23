@@ -91,6 +91,8 @@ class DayDetailView extends StatelessWidget {
   Widget _buildTradeCard(BuildContext context, ClosedTradeModel trade) {
     final theme = Theme.of(context);
     final pnlColor = trade.isProfitable ? Colors.green : Colors.red;
+    // Лонг — зелёная плашка, Шорт — красная, независимо от результата.
+    final sideColor = trade.tradeType == 'Лонг' ? Colors.green : Colors.red;
     final timeStr =
         '${trade.createdAt.hour.toString().padLeft(2, '0')}:'
         '${trade.createdAt.minute.toString().padLeft(2, '0')}:'
@@ -102,73 +104,85 @@ class DayDetailView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(
-                  trade.symbol,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: pnlColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Text(
+                    trade.symbol,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  child: Text(
-                    trade.tradeType,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: pnlColor,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: sideColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      trade.tradeType,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: sideColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: pnlColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    trade.resultLabel,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: pnlColor,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: pnlColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      trade.resultLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: pnlColor,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(timeStr, style: theme.textTheme.bodySmall),
-                const Spacer(),
-                Text(
-                  trade.closedPnl >= 0
-                      ? '+${trade.closedPnl.toStringAsFixed(4)}'
-                      : trade.closedPnl.toStringAsFixed(4),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: pnlColor,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(width: 8),
+                  Text(timeStr, style: theme.textTheme.bodySmall),
+                  const SizedBox(width: 16),
+                  Text(
+                    trade.closedPnl >= 0
+                        ? '+${trade.closedPnl.toStringAsFixed(2)}'
+                        : trade.closedPnl.toStringAsFixed(2),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: pnlColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                _infoColumn('Вход', trade.avgEntryPrice.toStringAsFixed(2)),
-                const SizedBox(width: 16),
-                _infoColumn('Выход', trade.avgExitPrice.toStringAsFixed(2)),
-                const SizedBox(width: 16),
-                _infoColumn('Кол-во', trade.qty.toStringAsFixed(4)),
-                const SizedBox(width: 16),
-                _infoColumn('Плечо', '${trade.leverage.toStringAsFixed(0)}x'),
-                const SizedBox(width: 16),
-                _infoColumn('Объём откр.', trade.cumEntryValue.toStringAsFixed(2)),
-                const SizedBox(width: 16),
-                _infoColumn('Объём закр.', trade.cumExitValue.toStringAsFixed(2)),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _infoColumn('Вход', trade.avgEntryPrice.toStringAsFixed(2)),
+                  const SizedBox(width: 16),
+                  _infoColumn('Выход', trade.avgExitPrice.toStringAsFixed(2)),
+                  const SizedBox(width: 16),
+                  _infoColumn('Кол-во', trade.qty.toStringAsFixed(2)),
+                  const SizedBox(width: 16),
+                  _infoColumn('Плечо', '${trade.leverage.toStringAsFixed(0)}x'),
+                  const SizedBox(width: 16),
+                  _infoColumn(
+                    'Объём откр.',
+                    trade.cumEntryValue.toStringAsFixed(2),
+                  ),
+                  const SizedBox(width: 16),
+                  _infoColumn(
+                    'Объём закр.',
+                    trade.cumExitValue.toStringAsFixed(2),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

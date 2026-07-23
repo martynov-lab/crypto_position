@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(flutter analyze lib/src packages/screener/lib 2>&1)"
+      "PowerShell(flutter analyze lib/src packages/screener/lib 2>&1)",
+      "PowerShell(dart analyze lib/src/market_data/market_data_registry.dart lib/src/presentation/arbitrage_calculator 2>&1)",
+      "PowerShell(Remove-Item test\\\\gate_live_test.dart -Confirm:$false)",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'crypto_position' } | Select-Object Id, Name, Path)",
+      "Read(//c/Users/arovit/Projects/crypto_position/build/windows/x64/runner/Debug/**)",
+      "PowerShell(flutter build windows --debug 2>&1)",
+      "PowerShell(dart analyze lib/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart)",
+      "PowerShell(dart analyze lib/src/presentation/arbitrage_calculator)",
+      "PowerShell(dart analyze lib/src/presentation)",
+      "PowerShell(dart analyze lib/src/presentation/journal/widgets/day_detail_view.dart)",
+      "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/arbitrage_calculator)",
+      "PowerShell(dart analyze lib/src/presentation/screener/coin_chart_screen.dart lib/src/presentation/arbitrage_calculator/arbitrage_calculator.dart)"
     ]
   }
 }

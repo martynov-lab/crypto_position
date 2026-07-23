@@ -24,4 +24,10 @@ class MarketDataRegistry {
   List<ExchangeId> get connected => ExchangeId.values
       .where((e) => _connectedFlags[e]?.value ?? false)
       .toList();
+
+  /// All exchanges with a market-data provider, in [ExchangeId] declaration
+  /// order. Public market data needs no credentials, so this is wider than
+  /// [connected].
+  List<ExchangeId> get all =>
+      ExchangeId.values.where(_providers.containsKey).toList();
 }

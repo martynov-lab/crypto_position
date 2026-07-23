@@ -28,9 +28,9 @@ abstract class ClosedTradeModel with _$ClosedTradeModel {
   bool get isProfitable => closedPnl >= 0;
 
   String get tradeType {
-    if (side == 'Buy') return 'Закрыть шорт';
-    return 'Закрыть лонг';
+    if (side == 'Buy') return 'Шорт';
+    return 'Лонг';
   }
 
-  String get resultLabel => isProfitable ? 'Успешная сделка' : 'Убыток';
+  String get resultLabel => isProfitable ? 'Прибыль' : 'Убыток';
 }

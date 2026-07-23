@@ -30,8 +30,11 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 /coverage/
+
+# Kotlin compiler session files
+android/.kotlin/
 
 # Symbolication related
 app.*.symbols

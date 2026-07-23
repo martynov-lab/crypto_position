@@ -11,11 +11,43 @@ import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
-  ArbitrageCalculator({super.key})
-    : super((context) => arbitrageCalculatorWmFactory(context: context));
+  /// Compact form-only mode for embedding under an external spread chart
+  /// (screener): no coin search, exchange pickers or own chart.
+  final bool embedded;
+
+  /// Pre-selected coin/venues applied once the catalog loads (screener signal:
+  /// exchange1 = long/buy leg, exchange2 = short/sell leg).
+  final String? initialBase;
+  final ExchangeId? initialExchange1;
+  final ExchangeId? initialExchange2;
+
+  ArbitrageCalculator({
+    super.key,
+    this.embedded = false,
+    this.initialBase,
+    this.initialExchange1,
+    this.initialExchange2,
+  }) : super((context) => arbitrageCalculatorWmFactory(context: context));
 
   @override
   Widget build(ArbitrageCalculatorWm wm) {
+    if (embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ArbitrageFundingPanel(wm: wm),
+          const SizedBox(height: 16),
+          _Inputs(wm: wm),
+          const SizedBox(height: 16),
+          _CalcButton(wm: wm),
+          const SizedBox(height: 16),
+          _Results(wm: wm),
+          _SlippagePanel(wm: wm),
+          _EntryPanel(wm: wm),
+          _ErrorText(wm: wm),
+        ],
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         // Wide (desktop): settings on the left, live chart on the right.
@@ -188,7 +220,7 @@ class _ExchangePickers extends StatelessWidget {
         final available = wm.availableExchanges;
         if (available.length < 2) {
           return _InfoCard(
-            'Монета $base доступна менее чем на двух подключённых биржах.',
+            'Монета $base доступна менее чем на двух биржах.',
           );
         }
         return Row(
@@ -421,7 +453,7 @@ class _TimeframeSelector extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 6),
                 child: ChoiceChip(
-                  label: Text(m == 0 ? 'Тики' : '$mм'),
+                  label: Text('$mм'),
                   selected: m == selected,
                   onSelected: (_) => wm.setTimeframe(m),
                 ),

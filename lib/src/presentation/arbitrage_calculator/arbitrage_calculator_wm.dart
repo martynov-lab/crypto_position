@@ -27,8 +27,7 @@ class SpreadSample {
 const kLeverageSteps = <double>[1, 3, 5, 10, 15, 20, 25];
 
 /// Selectable chart timeframes, in minutes (bucket size per plotted point).
-/// `0` means raw ticks (one point per 2s sample, no bucketing).
-const kTimeframesMin = <int>[0, 1, 5, 15];
+const kTimeframesMin = <int>[1, 5, 15];
 
 /// Live-data poll cadence and how many raw samples are retained.
 const _pollInterval = Duration(seconds: 2);
@@ -38,7 +37,7 @@ const _pollInterval = Duration(seconds: 2);
 const _maxSamples = 5400;
 
 /// How many 1-minute candles seed the chart on selection (one hour of history).
-const _seedCandles = 240;
+const _seedCandles = 300;
 
 class ArbitrageCalculatorWm
     extends WidgetModel<ArbitrageCalculator, ArbitrageCalculatorModel>
@@ -112,6 +111,10 @@ class ArbitrageCalculatorWm
   Timer? _pollTimer;
   int _pollGen = 0;
 
+  /// Widget-provided initial selection is applied at most once, so a catalog
+  /// reload can't override what the user changed by hand.
+  bool _initialSelectionApplied = false;
+
   // Exposed listenables.
   ValueListenable<double> get leverage => _leverage;
   ValueListenable<int> get timeframeMin => _timeframeMin;
@@ -156,15 +159,16 @@ class ArbitrageCalculatorWm
   double? get currentSpreadPct =>
       _spreadSeries.value.isEmpty ? null : _spreadSeries.value.last.spreadPct;
 
-  /// All connected exchanges (regardless of the selected coin).
-  List<ExchangeId> get availableExchangesAll => _registry.connected;
+  /// All exchanges with market data (regardless of the selected coin).
+  List<ExchangeId> get availableExchangesAll => _registry.all;
 
-  /// Exchanges offering [selectedBase] that are also connected.
+  /// Exchanges offering [selectedBase]. Public market data needs no
+  /// credentials; the trade layer checks for a live session on its own.
   List<ExchangeId> get availableExchanges {
     final base = _selectedBase.value;
     if (base == null) return const [];
     final covering = _basesToExchanges[base] ?? const {};
-    return _registry.connected.where(covering.contains).toList();
+    return _registry.all.where(covering.contains).toList();
   }
 
   double makerPct(ExchangeId e) => _feeStore.makerPct(e);
@@ -267,7 +271,8 @@ class ArbitrageCalculatorWm
     _catalogLoading.value = true;
     _byExchange.clear();
     _basesToExchanges.clear();
-    for (final exchange in _registry.connected) {
+    final errors = <String>[];
+    for (final exchange in _registry.all) {
       final provider = _registry.provider(exchange);
       if (provider == null) continue;
       try {
@@ -279,11 +284,41 @@ class ArbitrageCalculatorWm
         }
         _byExchange[exchange] = byBase;
       } on Object catch (e) {
-        _dataError.value = '${exchange.label}: $e';
+        errors.add('${exchange.label}: $e');
       }
     }
+    if (errors.isNotEmpty) _dataError.value = errors.join('\n');
     _catalogLoading.value = false;
     _recomputeCandidates();
+    _applyInitialSelection();
+  }
+
+  /// Applies the widget's pre-selected coin/venues (screener signal) once the
+  /// catalog knows which exchanges cover the coin. Falls back to the first
+  /// available venues when a requested one doesn't cover the coin.
+  void _applyInitialSelection() {
+    if (_initialSelectionApplied) return;
+    final base = widget.initialBase;
+    if (base == null) return;
+    if (!(_basesToExchanges[base]?.isNotEmpty ?? false)) return;
+    _initialSelectionApplied = true;
+    _selectedBase.value = base;
+    searchController.text = base;
+    _candidates.value = const [];
+    final available = availableExchanges;
+    final picks = <ExchangeId>[];
+    for (final e in [
+      widget.initialExchange1,
+      widget.initialExchange2,
+      ...available,
+    ]) {
+      if (e != null && available.contains(e) && !picks.contains(e)) {
+        picks.add(e);
+      }
+    }
+    _exchange1.value = picks.isNotEmpty ? picks[0] : null;
+    _exchange2.value = picks.length > 1 ? picks[1] : null;
+    _restartPolling();
   }
 
   void _recomputeCandidates() {
