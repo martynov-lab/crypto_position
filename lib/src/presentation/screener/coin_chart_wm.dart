@@ -1,3 +1,5 @@
+import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_wm.dart'
+    show kTimeframesMin;
 import 'package:crypto_position/src/presentation/screener/coin_chart_model.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_screen.dart';
 import 'package:crypto_position/src/screener_service.dart';
@@ -19,8 +21,13 @@ class CoinChartWm extends WidgetModel<CoinChartScreen, CoinChartModel> {
   late final SpreadChartController _controller;
   final _capExceeded = ValueNotifier<bool>(false);
 
-  /// Chart timeframe as a bucket size in ms; 0 = raw (per-sample).
-  final _bucketMs = ValueNotifier<int>(0);
+  /// Chart timeframe as a bucket size in ms (same options as the calculator,
+  /// [kTimeframesMin]); 0 = raw (per-sample).
+  final _bucketMs = ValueNotifier<int>(kTimeframesMin.first * 60000);
+
+  /// Requested history window (3h) — enough raw samples for the largest
+  /// timeframe to still draw a line (matches the calculator's retention).
+  static const _windowMs = 10800000;
 
   CoinChartWm(
     super.model, {
@@ -46,6 +53,7 @@ class CoinChartWm extends WidgetModel<CoinChartScreen, CoinChartModel> {
     super.initWidgetModel();
     _controller = _service.watchInstrument(
       instrument,
+      windowMs: _windowMs,
       longExchange: longExchange,
       shortExchange: shortExchange,
     );

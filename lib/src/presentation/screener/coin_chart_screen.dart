@@ -1,7 +1,7 @@
 import 'package:crypto_position/src/market_data/exchange_id.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_calculator_wm.dart'
-    show SpreadSample;
+    show SpreadSample, kTimeframesMin;
 import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_wm.dart';
 import 'package:elementary/elementary.dart';
@@ -250,35 +250,29 @@ class _WaitingForData extends StatelessWidget {
   }
 }
 
-/// Timeframe picker: each option buckets the raw samples into one point per
-/// interval (0 = raw, per-sample).
+/// Timeframe picker: same options as the calculator ([kTimeframesMin]); each
+/// option buckets the raw samples into one point per interval.
 class _TimeframeSelector extends StatelessWidget {
   final int current;
   final void Function(int bucketMs) onSelect;
 
   const _TimeframeSelector({required this.current, required this.onSelect});
 
-  static const _options = <(String, int)>[
-    ('1с', 0),
-    ('30с', 30000),
-    ('1м', 60000),
-    ('5м', 300000),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          for (final (label, ms) in _options)
+          for (final m in kTimeframesMin)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(left: 6),
               child: ChoiceChip(
-                label: Text(label),
-                selected: current == ms,
+                label: Text('$mм'),
+                selected: current == m * 60000,
                 visualDensity: VisualDensity.compact,
-                onSelected: (_) => onSelect(ms),
+                onSelected: (_) => onSelect(m * 60000),
               ),
             ),
         ],
