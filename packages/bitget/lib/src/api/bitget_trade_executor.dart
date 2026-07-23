@@ -61,6 +61,23 @@ class BitgetTradeExecutor implements TradeExecutor {
   }
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async {
+    // Account-wide per product type on Bitget; orders here are one-way shaped
+    // (no tradeSide), so a hedge-mode account rejects them with 40774.
+    final response = await _client.post<Map<String, Object?>>(
+      '/api/v2/mix/account/set-position-mode',
+      body: {'productType': _productType, 'posMode': 'one_way_mode'},
+    );
+    return response.fold(
+      (data) {
+        final err = _envelopeError(data);
+        return err != null ? Err(err) : const Ok(null);
+      },
+      (error) => Err(error),
+    );
+  }
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,

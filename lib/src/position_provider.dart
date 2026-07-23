@@ -22,6 +22,7 @@ import 'package:crypto_position/src/market_data/market_data_registry.dart';
 import 'package:crypto_position/src/market_data/mexc_market_data.dart';
 import 'package:crypto_position/src/market_data/okx_market_data.dart';
 import 'package:crypto_position/src/screener_service.dart';
+import 'package:crypto_position/src/tab_badge_service.dart';
 import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:exchange/exchange.dart';
 import 'package:network/network.dart';
@@ -126,6 +127,17 @@ class PositionProvider extends StatelessWidget {
         create: (_) => ScreenerService(),
         dispose: (_, value) => value.dispose(),
       ),
+      Provider<TabBadgeService>(
+        create: (context) => TabBadgeService(
+          bybit: context.read<BybitSessionService>(),
+          okx: context.read<OkxSessionService>(),
+          bitget: context.read<BitgetSessionService>(),
+          gate: context.read<GateSessionService>(),
+          mexc: context.read<MexcSessionService>(),
+          screener: context.read<ScreenerService>(),
+        ),
+        dispose: (_, value) => value.dispose(),
+      ),
       ChangeNotifierProvider<FeeSettingsStore>(
         create: (context) =>
             FeeSettingsStore(context.read<SharedPreferencesHelper>())..load(),
@@ -140,19 +152,23 @@ class PositionProvider extends StatelessWidget {
             ExchangeId.mexc: MexcMarketData(),
           },
           connectedFlags: {
-            ExchangeId.bybit:
-                context.read<BybitSessionService>().hasCredentials,
+            ExchangeId.bybit: context
+                .read<BybitSessionService>()
+                .hasCredentials,
             ExchangeId.okx: context.read<OkxSessionService>().hasCredentials,
-            ExchangeId.bitget:
-                context.read<BitgetSessionService>().hasCredentials,
+            ExchangeId.bitget: context
+                .read<BitgetSessionService>()
+                .hasCredentials,
             ExchangeId.gate: context.read<GateSessionService>().hasCredentials,
             ExchangeId.mexc: context.read<MexcSessionService>().hasCredentials,
           },
         ),
       ),
       Provider<TradeExecutorRegistry>(
-        create: (context) => TradeExecutorRegistry(<ExchangeId, TradeExecutor?
-            Function()>{
+        create: (context) => TradeExecutorRegistry(<
+          ExchangeId,
+          TradeExecutor? Function()
+        >{
           ExchangeId.bybit: () =>
               context.read<BybitSessionService>().session.value?.tradeExecutor,
           ExchangeId.okx: () =>

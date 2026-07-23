@@ -62,6 +62,22 @@ class MexcTradeExecutor implements TradeExecutor {
   }
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async {
+    // Account-wide on MEXC: positionMode 1 = hedge, 2 = one-way.
+    final response = await _client.post<Map<String, Object?>>(
+      '/api/v1/private/position/change_position_mode',
+      body: {'positionMode': 2},
+    );
+    return response.fold(
+      (data) {
+        final err = _envelopeError(data);
+        return err != null ? Err(err) : const Ok(null);
+      },
+      (error) => Err(error),
+    );
+  }
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,

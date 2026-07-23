@@ -64,6 +64,24 @@ class OkxTradeExecutor implements TradeExecutor {
   }
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async {
+    // Account-wide on OKX; rejected while any position or order is open.
+    final response = await _client.post<Map<String, Object?>>(
+      '/api/v5/account/set-position-mode',
+      body: {'posMode': 'net_mode'},
+    );
+    return response.fold(
+      (data) {
+        final err = _envelopeError(data);
+        if (err != null) return Err(err);
+        _hedgeMode = false;
+        return const Ok(null);
+      },
+      (error) => Err(error),
+    );
+  }
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,

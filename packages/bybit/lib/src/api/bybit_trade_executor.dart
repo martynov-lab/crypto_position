@@ -79,6 +79,27 @@ class BybitTradeExecutor implements TradeExecutor {
   }
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async {
+    final response = await _client.post<Map<String, Object?>>(
+      '/v5/position/switch-mode',
+      body: {'category': _category, 'symbol': symbol, 'mode': 0},
+    );
+    return response.fold(
+      (data) {
+        final retCode = data['retCode'];
+        // 110025: position mode not modified (already one-way) — treat as OK.
+        if (retCode != 110025) {
+          final err = _envelopeError(data);
+          if (err != null) return Err(err);
+        }
+        _hedgeMode[symbol] = false;
+        return const Ok(null);
+      },
+      (error) => Err(error),
+    );
+  }
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,

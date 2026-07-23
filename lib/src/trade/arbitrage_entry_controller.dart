@@ -141,6 +141,11 @@ class ArbitrageEntryController {
         }
     }
 
+    // Best-effort: hedge-mode accounts reject the one-way-shaped orders below,
+    // so try to switch. A failure (e.g. open positions) is left for the probe
+    // order to surface as the real error.
+    await executor.ensureOneWayMode(leg.symbol);
+
     // A non-marketable probe, pre-sized to clear the exchange's minimum
     // quantity and minimum order value (see `canaryOrder`).
     final placed = await executor.placeLimitOrder(
@@ -178,6 +183,12 @@ class ArbitrageEntryController {
         note: 'нет активной сессии на одной из бирж',
       );
     }
+
+    // Best-effort one-way mode on both legs (see _canaryLeg for rationale).
+    await Future.wait([
+      longExec.ensureOneWayMode(plan.long.symbol),
+      shortExec.ensureOneWayMode(plan.short.symbol),
+    ]);
 
     // Leverage first; a failure here means we never place an order.
     final levs = await Future.wait([

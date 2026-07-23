@@ -36,6 +36,10 @@ class FakeExecutor implements TradeExecutor {
       const Ok(null);
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async =>
+      const Ok(null);
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,

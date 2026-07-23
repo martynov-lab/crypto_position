@@ -37,6 +37,12 @@ abstract interface class TradeExecutor {
   /// most exchanges (setting the current value is a no-op).
   Future<Result<void, Object>> setLeverage(String symbol, double leverage);
 
+  /// Switches the account to one-way (net) position mode, the mode the order
+  /// flow assumes. Best-effort preflight: exchanges reject the switch while
+  /// positions or orders are open — callers ignore the failure and let the
+  /// order itself surface the real error.
+  Future<Result<void, Object>> ensureOneWayMode(String symbol);
+
   /// Places a limit order. [qty] is in the exchange's native order unit
   /// (contracts where the exchange sizes orders in contracts, base units
   /// otherwise) and, like [price], must already be rounded to the instrument's

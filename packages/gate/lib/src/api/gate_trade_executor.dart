@@ -43,6 +43,24 @@ class GateTradeExecutor implements TradeExecutor {
   }
 
   @override
+  Future<Result<void, Object>> ensureOneWayMode(String symbol) async {
+    // Gate rejects switching to the mode that is already active, so read the
+    // account first and only leave dual mode when it is actually on.
+    final account = await _client.get<Map<String, Object?>>('$_base/accounts');
+    switch (account) {
+      case Err(:final error):
+        return Err(error);
+      case Ok(:final value):
+        if (value['in_dual_mode'] != true) return const Ok(null);
+    }
+    final response = await _client.post<Map<String, Object?>>(
+      '$_base/dual_mode',
+      queryParams: {'dual_mode': false},
+    );
+    return response.fold((_) => const Ok(null), (error) => Err(error));
+  }
+
+  @override
   Future<Result<OrderAck, Object>> placeLimitOrder({
     required String symbol,
     required OrderSide side,
