@@ -61,8 +61,12 @@ class ArbitrageCalculatorWm
   final capital1Controller = TextEditingController(text: '100');
   final capital2Controller = TextEditingController(text: '100');
   final holdingHoursController = TextEditingController(text: '1');
+  // Seeded from the tapped screener signal's entry spread when available (see
+  // _applyInitialSelection); otherwise starts blank.
   final entrySpreadController = TextEditingController();
-  final exitSpreadController = TextEditingController();
+  // Flat default: the spread level at which the pair is expected to converge
+  // and the position gets closed.
+  final exitSpreadController = TextEditingController(text: '0.5');
 
   final _leverage = ValueNotifier<double>(5);
   final _timeframeMin = ValueNotifier<int>(kTimeframesMin.first);
@@ -319,7 +323,20 @@ class ArbitrageCalculatorWm
     }
     _exchange1.value = picks.isNotEmpty ? picks[0] : null;
     _exchange2.value = picks.length > 1 ? picks[1] : null;
+    final entrySpreadPct = widget.initialEntrySpreadPct;
+    if (entrySpreadPct != null) {
+      entrySpreadController.text = _fmtSpreadInput(entrySpreadPct);
+    }
     _restartPolling();
+  }
+
+  /// Formats a percent number for the entry/exit spread fields, trimming
+  /// trailing zeros (e.g. `0.82`, not `0.820000`).
+  static String _fmtSpreadInput(double pct) {
+    var s = pct.toStringAsFixed(4);
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    s = s.replaceFirst(RegExp(r'\.$'), '');
+    return s;
   }
 
   void _recomputeCandidates() {

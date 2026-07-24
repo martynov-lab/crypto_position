@@ -39,12 +39,14 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                   summary: wm.summary,
                   onRefresh: wm.refreshSummary,
                   configOf: () => wm.clientConfig,
-                  onTap: (context, instrument, long, short) => context.push(
+                  onTap: (context, instrument, long, short, entrySpreadPct) =>
+                      context.push(
                     '/coin',
                     extra: CoinChartArgs(
                       instrument: instrument,
                       longExchange: long,
                       shortExchange: short,
+                      entrySpreadPct: entrySpreadPct,
                     ),
                   ),
                 ),

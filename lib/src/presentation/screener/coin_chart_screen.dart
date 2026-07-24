@@ -19,10 +19,15 @@ class CoinChartArgs {
   final String? longExchange;
   final String? shortExchange;
 
+  /// The tapped signal's entry spread, as a plain percent number (e.g. `0.82`
+  /// for 0.82%) — seeds the calculator's "Спред входа" field.
+  final double? entrySpreadPct;
+
   const CoinChartArgs({
     required this.instrument,
     this.longExchange,
     this.shortExchange,
+    this.entrySpreadPct,
   });
 }
 
@@ -127,6 +132,7 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                                   _exchangeByName(args.longExchange),
                               initialExchange2:
                                   _exchangeByName(args.shortExchange),
+                              initialEntrySpreadPct: args.entrySpreadPct,
                             ),
                           ),
                         ],

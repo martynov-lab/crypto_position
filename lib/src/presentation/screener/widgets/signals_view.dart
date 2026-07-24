@@ -15,12 +15,15 @@ class SignalsView extends StatelessWidget {
 
 
   /// Tapping a coin opens its live spread chart, pinned to the signal's pair
-  /// (long = buy_exchange, short = sell_exchange).
+  /// (long = buy_exchange, short = sell_exchange). [entrySpreadPct] is the
+  /// signal's entry spread as a plain percent number (e.g. `0.82` for 0.82%),
+  /// used to seed the calculator's "Спред входа" field.
   final void Function(
     BuildContext context,
     Instrument instrument,
     String? longExchange,
     String? shortExchange,
+    double? entrySpreadPct,
   ) onTap;
 
   const SignalsView({
@@ -66,6 +69,7 @@ class _SummaryFallback extends StatelessWidget {
     Instrument instrument,
     String? longExchange,
     String? shortExchange,
+    double? entrySpreadPct,
   ) onTap;
 
   const _SummaryFallback({
@@ -100,7 +104,7 @@ class _SummaryFallback extends StatelessWidget {
                     final instrument = _instrumentFromPair(row.instrument);
                     if (instrument != null) {
                       onTap(context, instrument, row.buyExchange,
-                          row.sellExchange);
+                          row.sellExchange, _entrySpreadPercent(row.netPct));
                     }
                   },
                 ),
@@ -111,6 +115,12 @@ class _SummaryFallback extends StatelessWidget {
     );
   }
 }
+
+/// Converts a wire fraction (e.g. `"0.0082"`) to the plain percent number the
+/// calculator's "Спред входа" field expects (e.g. `0.82`), or `null` when
+/// unparsable/absent.
+double? _entrySpreadPercent(String fraction) =>
+    double.tryParse(Decimals.toPercentInput(fraction) ?? '');
 
 /// Parses a `BASE/QUOTE` summary string into an [Instrument] (perp).
 Instrument? _instrumentFromPair(String pair) {
@@ -184,6 +194,7 @@ class _SignalCard extends StatelessWidget {
     Instrument instrument,
     String? longExchange,
     String? shortExchange,
+    double? entrySpreadPct,
   ) onTap;
 
   const _SignalCard({required this.event, required this.onTap});
@@ -203,7 +214,7 @@ class _SignalCard extends StatelessWidget {
           : null,
       child: InkWell(
         onTap: () => onTap(context, spread.instrument, spread.buyExchange,
-            spread.sellExchange),
+            spread.sellExchange, _entrySpreadPercent(spread.netPct)),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),

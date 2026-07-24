@@ -21,12 +21,17 @@ class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
   final ExchangeId? initialExchange1;
   final ExchangeId? initialExchange2;
 
+  /// Screener signal's entry spread, as a plain percent number (e.g. `0.82`
+  /// for 0.82%) — seeds "Спред входа" once, alongside the coin/venue picks.
+  final double? initialEntrySpreadPct;
+
   ArbitrageCalculator({
     super.key,
     this.embedded = false,
     this.initialBase,
     this.initialExchange1,
     this.initialExchange2,
+    this.initialEntrySpreadPct,
   }) : super((context) => arbitrageCalculatorWmFactory(context: context));
 
   @override
@@ -760,11 +765,15 @@ class _EntryPanel extends StatelessWidget {
         wm.canaryReport,
         wm.entryReport,
         wm.entryBusy,
+        // currentSpreadPct is derived from spreadSeries — listen to it too so
+        // the spread line below stays live, same as _SpreadHeader above.
+        wm.spreadSeries,
       ]),
       builder: (context, _) {
         final plan = wm.entryPlan.value;
         if (plan == null) return const SizedBox.shrink();
         final busy = wm.entryBusy.value;
+        final spread = wm.currentSpreadPct;
         return Padding(
           padding: const EdgeInsets.only(top: 16),
           child: Card(
@@ -773,9 +782,23 @@ class _EntryPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Вход в позицию',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Вход в позицию',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        'спред ${spread == null ? '—' : '${spread.toStringAsFixed(3)}%'}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: spread == null
+                              ? null
+                              : (spread >= 0 ? Colors.green : Colors.red),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   _legRow(context, 'LONG', plan.long),
