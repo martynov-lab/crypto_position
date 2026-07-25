@@ -5,6 +5,7 @@ import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_
     show SpreadSample, kTimeframesMin;
 import 'package:crypto_position/src/presentation/arbitrage_calculator/widgets/spread_line_chart.dart';
 import 'package:crypto_position/src/presentation/screener/coin_chart_wm.dart';
+import 'package:crypto_position/src/presentation/screener/widgets/depth_cap_tag.dart';
 import 'package:crypto_position/src/presentation/screener/widgets/spread_range_chart.dart';
 import 'package:elementary/elementary.dart';
 import 'package:flutter/foundation.dart';
@@ -21,7 +22,8 @@ class CoinChartArgs {
   final String? shortExchange;
 
   /// The tapped signal's entry spread, as a plain percent number (e.g. `0.82`
-  /// for 0.82%) — seeds the calculator's "Спред входа" field.
+  /// for 0.82%) — seeds the calculator's "Спред входа" field only until the
+  /// live watch delivers its first point, which then wins.
   final double? entrySpreadPct;
 
   const CoinChartArgs({
@@ -89,7 +91,10 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                       final view = downsampleSpread(points, bucket);
                       return ListView(
                         children: [
-                          _Header(points: view, pinned: pinned),
+                          // Header/calculator read the raw stream, not the
+                          // bucketed view: In/Out must follow every tick
+                          // whatever timeframe the chart is drawn at.
+                          _Header(points: points, pinned: pinned),
                           _PairPickers(wm: wm, pinned: pinned),
                           _TimeframeSelector(
                             current: bucket,
@@ -128,8 +133,8 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                           _Calculator(
                             base: args.instrument.base,
                             pinned: pinned,
-                            entrySpreadPct: args.entrySpreadPct ??
-                                _entryPercent(view),
+                            entrySpreadPct: _entryPercent(points) ??
+                                args.entrySpreadPct,
                           ),
                         ],
                       );
@@ -214,7 +219,9 @@ double? _entryPercent(List<SpreadPoint> points) {
   return double.tryParse(Decimals.toPercentInput(points.last.entryPct) ?? '');
 }
 
-/// Pinned pair + current In/Out values above the chart.
+/// Pinned pair + live In/Out values above the chart. Fed with the raw tick
+/// stream, so the numbers change with every tick regardless of the chart's
+/// timeframe.
 class _Header extends StatelessWidget {
   final List<SpreadPoint> points;
   final PinnedPair pinned;
@@ -228,47 +235,39 @@ class _Header extends StatelessWidget {
     final latest = points.isEmpty ? null : points.last;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (long != null && short != null)
-            Expanded(
-              child: Text(
-                'long $long → short $short',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            )
-          else
-            const Spacer(),
-          if (latest != null) ...[
-            _ValueChip(
-              label: 'вход',
-              value: Decimals.percent(latest.entryPct),
-              color: Colors.green,
-            ),
-            const SizedBox(width: 8),
-            if (latest.outPct != null)
-              _ValueChip(
-                label: 'выход',
-                value: Decimals.percent(latest.outPct!),
-                color: Colors.red,
-              ),
-            if (latest.cappedByDepth) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'мираж',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onErrorContainer,
+          Row(
+            children: [
+              if (long != null && short != null)
+                Expanded(
+                  child: Text(
+                    'long $long → short $short',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                )
+              else
+                const Spacer(),
+              if (latest != null) ...[
+                _ValueChip(
+                  label: 'вход',
+                  value: Decimals.percent(latest.entryPct),
+                  color: Colors.green,
                 ),
-              ),
+                const SizedBox(width: 8),
+                if (latest.outPct != null)
+                  _ValueChip(
+                    label: 'выход',
+                    value: Decimals.percent(latest.outPct!),
+                    color: Colors.red,
+                  ),
+              ],
             ],
+          ),
+          if (latest != null && latest.cappedByDepth) ...[
+            const SizedBox(height: 8),
+            const DepthCapTag(),
           ],
         ],
       ),

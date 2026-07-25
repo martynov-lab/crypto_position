@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/presentation/screener/widgets/depth_cap_tag.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:screener/screener.dart';
@@ -48,14 +49,26 @@ class SignalsView extends StatelessWidget {
             onTap: onTap,
           );
         }
-        return RefreshIndicator(
-          onRefresh: onRefresh,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: events.length,
-            itemBuilder: (context, index) =>
-                _SignalCard(event: events[index], onTap: onTap),
-          ),
+        // The signal itself is a snapshot of the moment it fired; `/summary`
+        // (polled by the screen) carries the current spread per coin, so each
+        // card can show what the spread is *now* next to what triggered it.
+        return ValueListenableBuilder<List<SummaryEntry>>(
+          valueListenable: summary,
+          builder: (context, rows, _) {
+            final current = {for (final row in rows) row.instrument: row};
+            return RefreshIndicator(
+              onRefresh: onRefresh,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: events.length,
+                itemBuilder: (context, index) => _SignalCard(
+                  event: events[index],
+                  current: current[events[index].instrument.pair],
+                  onTap: onTap,
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -194,6 +207,11 @@ class _FallbackBanner extends StatelessWidget {
 
 class _SignalCard extends StatelessWidget {
   final SignalEvent event;
+
+  /// The coin's current best spread from the latest `/summary` poll, or null
+  /// before the first snapshot — the live counterpart to the signal's own
+  /// (already stale) numbers.
+  final SummaryEntry? current;
   final void Function(
     BuildContext context,
     Instrument instrument,
@@ -202,7 +220,11 @@ class _SignalCard extends StatelessWidget {
     double? entrySpreadPct,
   ) onTap;
 
-  const _SignalCard({required this.event, required this.onTap});
+  const _SignalCard({
+    required this.event,
+    required this.current,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -218,8 +240,13 @@ class _SignalCard extends StatelessWidget {
             )
           : null,
       child: InkWell(
-        onTap: () => onTap(context, spread.instrument, spread.buyExchange,
-            spread.sellExchange, _entrySpreadPercent(spread.netPct)),
+        onTap: () => onTap(
+          context,
+          spread.instrument,
+          spread.buyExchange,
+          spread.sellExchange,
+          _entrySpreadPercent(current?.netPct ?? spread.netPct),
+        ),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -260,24 +287,7 @@ class _SignalCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _PercentLabel(fraction: spread.roundTripPct, large: true),
-                    Tooltip(
-                      message:
-                          'Спред на входе в сделку — без учёта комиссий и '
-                          'условий закрытия. Крупная цифра выше — прибыль за '
-                          'весь круг (вход и выход, все комиссии, фандинг): '
-                          'ориентируйтесь на неё, а не на эту.',
-                      triggerMode: TooltipTriggerMode.tap,
-                      showDuration: const Duration(seconds: 8),
-                      child: Text(
-                        'вход ${Decimals.percent(spread.netPct)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          decoration: TextDecoration.underline,
-                          decorationStyle: TextDecorationStyle.dotted,
-                          decorationColor: theme.colorScheme.outline,
-                        ),
-                      ),
-                    ),
+                    _EntrySpread(signal: spread, current: current),
                   ],
                 ),
               ],
@@ -290,15 +300,7 @@ class _SignalCard extends StatelessWidget {
                 _Tag('объём ${Decimals.amount(spread.executableNotional)}'),
                 if (spread.expectedProfitQuote.isNotEmpty)
                   _Tag('~${Decimals.amount(spread.expectedProfitQuote)} USDT'),
-                if (spread.cappedByDepth)
-                  const _Tag(
-                    'мало объёма в стакане',
-                    warning: true,
-                    tooltip:
-                        'В стакане недостаточно объёма по нужной цене, чтобы '
-                        'исполнить сделку на весь расчётный объём — реальный '
-                        'объём и прибыль могут оказаться меньше показанных.',
-                  ),
+                if (spread.cappedByDepth) const DepthCapTag(),
                 if (event.funding != null)
                   _Tag(
                     'funding ${Decimals.percent(event.funding!.diffApr)} '
@@ -313,6 +315,59 @@ class _SignalCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Entry spread under the round-trip figure: the **current** one from the last
+/// `/summary` poll, with the signal's own (frozen at fire time) value kept
+/// underneath so it's obvious when the opportunity has already moved.
+class _EntrySpread extends StatelessWidget {
+  final Spread signal;
+  final SummaryEntry? current;
+
+  const _EntrySpread({required this.signal, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final live = current;
+    final hint = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      decoration: TextDecoration.underline,
+      decorationStyle: TextDecorationStyle.dotted,
+      decorationColor: theme.colorScheme.outline,
+    );
+    return Tooltip(
+      message: live == null
+          ? 'Спред на входе в сделку — без учёта комиссий и условий закрытия. '
+              'Крупная цифра выше — прибыль за весь круг (вход и выход, все '
+              'комиссии, фандинг): ориентируйтесь на неё, а не на эту.'
+          : 'Спред на входе: «сейчас» — текущее значение по лучшей паре площадок '
+              '(${live.buyExchange} → ${live.sellExchange}, обновляется '
+              'автоматически), «в сигнале» — значение в момент срабатывания. '
+              'Крупная цифра выше — прибыль за весь круг на момент сигнала: '
+              'ориентируйтесь на неё, а не на «вход».',
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            live == null
+                ? 'вход ${Decimals.percent(signal.netPct)}'
+                : 'вход сейчас ${Decimals.percent(live.netPct)}',
+            style: hint,
+          ),
+          if (live != null)
+            Text(
+              'в сигнале ${Decimals.percent(signal.netPct)}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -440,32 +495,22 @@ class _QualityChip extends StatelessWidget {
 
 class _Tag extends StatelessWidget {
   final String text;
-  final bool warning;
 
-  /// When set, tapping the tag shows a plain-language explanation.
-  final String? tooltip;
-
-  const _Tag(this.text, {this.warning = false, this.tooltip});
+  const _Tag(this.text);
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final bg = warning ? scheme.errorContainer : scheme.surfaceContainerHighest;
-    final fg = warning ? scheme.onErrorContainer : scheme.onSurfaceVariant;
-    final chip = Container(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: bg,
+        color: scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(text, style: TextStyle(fontSize: 12, color: fg)),
-    );
-    if (tooltip == null) return chip;
-    return Tooltip(
-      message: tooltip,
-      triggerMode: TooltipTriggerMode.tap,
-      showDuration: const Duration(seconds: 8),
-      child: chip,
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+      ),
     );
   }
 }

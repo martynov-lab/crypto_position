@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen_model.dart';
@@ -15,6 +17,14 @@ import 'package:screener/screener.dart';
 class ScreenerScreenWm
     extends WidgetModel<ScreenerScreen, ScreenerScreenModel> {
   final ScreenerService _service;
+
+  /// A signal freezes the spread of the moment it fired, so the cards would
+  /// keep showing a number that has long moved on. `/summary` is the only
+  /// all-coins live source (the WS chart watch is capped at 3 instruments), so
+  /// poll it while the screen is on to keep "вход сейчас" current.
+  static const _summaryPollInterval = Duration(seconds: 10);
+
+  Timer? _summaryTimer;
 
   ScreenerScreenWm(super.model, {required ScreenerService service})
       : _service = service;
@@ -36,6 +46,22 @@ class ScreenerScreenWm
   /// config leaves `exchanges` unset).
   Set<String> get enabledExchanges =>
       {...clientConfig.exchanges ?? ScreenerDefaults.allExchanges};
+
+  @override
+  void initWidgetModel() {
+    super.initWidgetModel();
+    unawaited(_service.refreshSummary());
+    _summaryTimer = Timer.periodic(
+      _summaryPollInterval,
+      (_) => unawaited(_service.refreshSummary()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _summaryTimer?.cancel();
+    super.dispose();
+  }
 
   void applyConfig(ClientConfig config) => _service.reconfigure(config);
 

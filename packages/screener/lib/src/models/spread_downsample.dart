@@ -1,9 +1,13 @@
 import 'spread_point.dart';
 
 /// Aggregates raw [points] into one point per [bucketMs] window (the chart's
-/// timeframe). Each bucket keeps the **last** sample's values (its "close") and
-/// is flagged `capped_by_depth` if *any* sample in the window was capped, so a
-/// mirage inside the interval stays visible.
+/// timeframe). Each *closed* bucket keeps the **last** sample's values (its
+/// "close") and is flagged `capped_by_depth` if *any* sample in the window was
+/// capped, so a mirage inside the interval stays visible.
+///
+/// The newest bucket is still open, so its samples are returned tick by tick:
+/// the head of the chart follows the live spread instead of showing one value
+/// held until the interval closes.
 ///
 /// `bucketMs <= 0` (raw) returns [points] unchanged. Decimal-safe: it only
 /// selects existing string values, never averages floats.
@@ -16,9 +20,10 @@ List<SpreadPoint> downsampleSpread(List<SpreadPoint> points, int bucketMs) {
   }
 
   final keys = byBucket.keys.toList()..sort();
+  final openBucket = keys.last;
   return [
     for (final key in keys)
-      _reduce(byBucket[key]!),
+      if (key == openBucket) ...byBucket[key]! else _reduce(byBucket[key]!),
   ];
 }
 
