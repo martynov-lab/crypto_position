@@ -10,7 +10,7 @@ extension PositionMapper on PositionDto {
 
     return PositionModel(
       symbol: instId,
-      side: posSide,
+      side: _side(posSide, pos),
       // `pos` is signed (negative for a net short); size is its magnitude.
       size: _parseAmount(pos).abs(),
       avgPrice: _parseAmount(avgPx),
@@ -25,6 +25,20 @@ extension PositionMapper on PositionDto {
       feesSince: createdAt,
     );
   }
+}
+
+/// The position's direction in OKX's own wording.
+///
+/// A hedge-mode account reports it directly in `posSide` (`long`/`short`). A
+/// net-mode account reports `net` and puts the direction in the sign of [pos] —
+/// without unpacking it every net position would look like a long, which flips
+/// the PnL and funding signs and makes it impossible to tell which side an
+/// order must take to close the position. `pos: 0` carries no direction; it
+/// only ever arrives on the frame that closes a position, which the repository
+/// handles by instrument rather than by side.
+String _side(String posSide, String pos) {
+  if (posSide == 'long' || posSide == 'short') return posSide;
+  return _parseAmount(pos) < 0 ? 'short' : 'long';
 }
 
 /// OKX returns '' for fields that are not applicable.

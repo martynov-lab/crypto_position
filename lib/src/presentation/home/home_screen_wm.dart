@@ -1,11 +1,17 @@
 import 'package:crypto_position/src/bitget_session_service.dart';
 import 'package:crypto_position/src/bybit_session_service.dart';
+import 'package:crypto_position/src/fees/fee_settings_store.dart';
 import 'package:crypto_position/src/gate_session_service.dart';
+import 'package:crypto_position/src/market_data/exchange_id.dart';
+import 'package:crypto_position/src/market_data/market_data_registry.dart';
 import 'package:crypto_position/src/mexc_session_service.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:crypto_position/src/presentation/home/exchange_account.dart';
 import 'package:crypto_position/src/presentation/home/home_screen.dart';
 import 'package:crypto_position/src/presentation/home/home_screen_model.dart';
+import 'package:crypto_position/src/trade/exchange_account_registry.dart';
+import 'package:crypto_position/src/trade/position_close_controller.dart';
+import 'package:crypto_position/src/trade/trade_executor_registry.dart';
 import 'package:elementary/elementary.dart';
 import 'package:exchange/exchange.dart';
 import 'package:flutter/foundation.dart';
@@ -21,13 +27,36 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
   final GateSessionService _gate;
   final MexcSessionService _mexc;
 
+  final PositionCloseController _closer;
+
   final _accounts = ValueNotifier<List<ExchangeAccount>>([]);
   final _hasAnyCredentials = ValueNotifier<bool>(false);
   final _loading = ValueNotifier<bool>(false);
+  final _selectedKeys = ValueNotifier<Set<String>>(const {});
+  final _closeBusy = ValueNotifier<bool>(false);
+  final _closeProgress = ValueNotifier<Map<String, CloseProgress>>(const {});
+  final _closeReport = ValueNotifier<CloseReport?>(null);
 
   ValueListenable<List<ExchangeAccount>> get accounts => _accounts;
   ValueListenable<bool> get hasAnyCredentials => _hasAnyCredentials;
   ValueListenable<bool> get loading => _loading;
+
+  /// [positionKey]s of the positions picked for closing. Non-empty means the
+  /// list is in selection mode.
+  ValueListenable<Set<String>> get selectedKeys => _selectedKeys;
+
+  /// True while a plan is being built or orders are in flight.
+  ValueListenable<bool> get closeBusy => _closeBusy;
+
+  /// Latest progress per position key, for the in-flight exit.
+  ValueListenable<Map<String, CloseProgress>> get closeProgress =>
+      _closeProgress;
+
+  ValueListenable<CloseReport?> get closeReport => _closeReport;
+
+  /// The close strategy's timings, shown in the confirmation dialog so the user
+  /// knows when the exit will start crossing the book.
+  CloseTuning get tuning => _closer.tuning;
 
   // Repositories currently listened to, so their listeners can be detached
   // when a session is replaced or closed.
@@ -44,11 +73,13 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     required BitgetSessionService bitget,
     required GateSessionService gate,
     required MexcSessionService mexc,
+    required PositionCloseController closer,
   })  : _bybit = bybit,
         _okx = okx,
         _bitget = bitget,
         _gate = gate,
-        _mexc = mexc;
+        _mexc = mexc,
+        _closer = closer;
 
   @override
   void initWidgetModel() {
@@ -97,8 +128,85 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
     _accounts.dispose();
     _hasAnyCredentials.dispose();
     _loading.dispose();
+    _selectedKeys.dispose();
+    _closeBusy.dispose();
+    _closeProgress.dispose();
+    _closeReport.dispose();
     super.dispose();
   }
+
+  /// Adds or removes one position from the selection. Long-press and tap both
+  /// land here; clearing the last one leaves selection mode.
+  void toggleSelection(String key) {
+    final next = Set<String>.of(_selectedKeys.value);
+    if (!next.remove(key)) next.add(key);
+    _selectedKeys.value = next;
+  }
+
+  void clearSelection() => _selectedKeys.value = const {};
+
+  /// Drops selected keys whose position is no longer open, so a position closed
+  /// here (or anywhere else) can't linger in the selection.
+  void _pruneSelection(List<ExchangeAccount> accounts) {
+    if (_selectedKeys.value.isEmpty) return;
+    final open = <String>{
+      for (final account in accounts)
+        for (final position in account.positions)
+          positionKey(account.exchange, position),
+    };
+    final kept = _selectedKeys.value.where(open.contains).toSet();
+    if (kept.length != _selectedKeys.value.length) _selectedKeys.value = kept;
+  }
+
+  /// Builds the exit plan for the selected positions. Places no orders — the UI
+  /// shows the plan for confirmation first.
+  Future<List<ClosePlanItem>> planClose() async {
+    final selected = _selectedKeys.value;
+    if (selected.isEmpty || _closeBusy.value) return const [];
+
+    final targets = <PositionToClose>[
+      for (final account in _accounts.value)
+        for (final position in account.positions)
+          if (selected.contains(positionKey(account.exchange, position)))
+            (exchange: account.exchange, position: position),
+    ];
+    if (targets.isEmpty) return const [];
+
+    _closeBusy.value = true;
+    _closeProgress.value = const {};
+    _closeReport.value = null;
+    try {
+      return await _closer.plan(targets);
+    } finally {
+      _closeBusy.value = false;
+    }
+  }
+
+  /// Runs the confirmed plan, then clears the selection and re-reads every
+  /// exchange so the list can't show a position that is already gone.
+  Future<void> executeClose(List<ClosePlanItem> items) async {
+    if (items.isEmpty || _closeBusy.value) return;
+    _closeBusy.value = true;
+    _closeReport.value = null;
+    try {
+      _closeReport.value = await _closer.run(
+        items,
+        onProgress: (progress) {
+          _closeProgress.value = {
+            ..._closeProgress.value,
+            progress.key: progress,
+          };
+        },
+      );
+    } finally {
+      _closeBusy.value = false;
+      clearSelection();
+      await refresh();
+    }
+  }
+
+  /// Stops the running exit after the current step.
+  void abortClose() => _closer.abort();
 
   void _onSessionsChanged() {
     _boundBybitRepo = _rebind(_boundBybitRepo, _bybit.session.value?.repository);
@@ -129,24 +237,26 @@ class HomeScreenWm extends WidgetModel<HomeScreen, HomeScreenModel> {
 
   void _rebuild() {
     final list = <ExchangeAccount>[];
-    _addAccount(list, 'Bybit', _bybit.session.value?.repository);
-    _addAccount(list, 'OKX', _okx.session.value?.repository);
-    _addAccount(list, 'Bitget', _bitget.session.value?.repository);
-    _addAccount(list, 'Gate', _gate.session.value?.repository);
-    _addAccount(list, 'MEXC', _mexc.session.value?.repository);
+    _addAccount(list, ExchangeId.bybit, _bybit.session.value?.repository);
+    _addAccount(list, ExchangeId.okx, _okx.session.value?.repository);
+    _addAccount(list, ExchangeId.bitget, _bitget.session.value?.repository);
+    _addAccount(list, ExchangeId.gate, _gate.session.value?.repository);
+    _addAccount(list, ExchangeId.mexc, _mexc.session.value?.repository);
     _accounts.value = list;
+    _pruneSelection(list);
   }
 
   void _addAccount(
     List<ExchangeAccount> list,
-    String name,
+    ExchangeId exchange,
     ExchangeAccountRepository? repo,
   ) {
     final balance = repo?.balance.value;
     if (balance == null) return;
     list.add(
       ExchangeAccount(
-        name: name,
+        exchange: exchange,
+        name: exchange.label,
         balance: balance,
         positions: repo?.positions.value ?? const [],
       ),
@@ -185,5 +295,11 @@ HomeScreenWm homeScreenWmFactory({required BuildContext context}) {
     bitget: context.read<BitgetSessionService>(),
     gate: context.read<GateSessionService>(),
     mexc: context.read<MexcSessionService>(),
+    closer: PositionCloseController(
+      executors: context.read<TradeExecutorRegistry>(),
+      accounts: context.read<ExchangeAccountRegistry>(),
+      market: context.read<MarketDataRegistry>(),
+      fees: context.read<FeeSettingsStore>(),
+    ),
   );
 }

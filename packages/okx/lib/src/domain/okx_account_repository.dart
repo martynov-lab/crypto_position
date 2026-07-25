@@ -24,7 +24,8 @@ class OkxAccountRepository implements ExchangeAccountRepository {
   final ValueNotifier<BalanceModel?> _balance = ValueNotifier(null);
   final ValueNotifier<List<PositionModel>?> _positions = ValueNotifier(null);
 
-  /// Open positions keyed by '$instId#$posSide'.
+  /// Open positions keyed by '$instId#$side', where the side is the direction
+  /// resolved by the mapper (`net` positions resolve to long/short by sign).
   final _positionsByKey = <String, PositionModel>{};
   final _markPriceSubs = <String, StreamSubscription<void>>{};
   final _fundingRateSubs = <String, StreamSubscription<void>>{};
@@ -117,9 +118,23 @@ class OkxAccountRepository implements ExchangeAccountRepository {
   void _onPositionEvent(PositionDto dto) {
     final model = dto.toModel();
     final key = _key(model);
+    // A net-mode account holds one direction per instrument, and the frame that
+    // closes it reports `pos: 0`, which carries no direction — so the long/short
+    // key derived from the sign can't be matched. Key on the instrument instead,
+    // which also clears the opposite-side row when a position flips.
+    final netMode = dto.posSide == 'net';
     if (model.size == 0) {
-      _positionsByKey.remove(key);
+      if (netMode) {
+        _positionsByKey.removeWhere((_, p) => p.symbol == model.symbol);
+      } else {
+        _positionsByKey.remove(key);
+      }
     } else {
+      if (netMode) {
+        _positionsByKey.removeWhere(
+          (k, p) => p.symbol == model.symbol && k != key,
+        );
+      }
       // Keep the locally tracked mark price: mark-price ticks are fresher
       // than the position event's snapshot.
       final current = _positionsByKey[key];

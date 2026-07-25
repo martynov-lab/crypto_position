@@ -1,6 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:crypto_position/src/market_data/market_data_provider.dart';
+import 'package:crypto_position/src/trade/order_rounding.dart';
+
+// The rounding helpers used to live here; they now sit in the trade layer so the
+// position-close math can share them. Re-exported so existing callers of this
+// library keep working unchanged.
+export 'package:crypto_position/src/trade/order_rounding.dart';
 
 /// Inputs for one arbitrage-profitability estimate. Rates are per funding
 /// interval as fractions (e.g. 0.0001); percents are whole-number percents
@@ -181,26 +187,6 @@ FillEstimate simulateFill({
   );
 }
 
-/// Floors [raw] down to a multiple of [step]. Returns 0 when the result would
-/// fall below [minQty] (the order would be too small to place). [step]/[minQty]
-/// null (exchange didn't report them) pass [raw] through unchanged.
-double roundQty(double raw, {double? step, double? minQty}) {
-  var q = raw;
-  if (step != null && step > 0) {
-    // Nudge before flooring so values like 0.3/0.1 don't drop a step to fp.
-    q = ((raw / step) + 1e-9).floorToDouble() * step;
-  }
-  if (minQty != null && q < minQty) return 0;
-  return q;
-}
-
-/// Rounds [raw] to the nearest multiple of [tick]. [tick] null passes [raw]
-/// through unchanged.
-double roundPrice(double raw, {double? tick}) {
-  if (tick == null || tick <= 0) return raw;
-  return (raw / tick).roundToDouble() * tick;
-}
-
 /// Converts a target notional ([capital] * [leverage]) at [price] into an order
 /// size in the exchange's native unit (base units divided by [contractSize],
 /// which is 1 where the exchange sizes orders in the base asset), floored to
@@ -242,13 +228,6 @@ List<SpreadPoint> spreadHistory(List<Candle> leg1, List<Candle> leg2) {
   }
   out.sort((a, b) => a.tsMs.compareTo(b.tsMs));
   return out;
-}
-
-/// Rounds [raw] *up* to a multiple of [step] (null [step] passes through).
-/// Used where a floor would breach an exchange minimum.
-double roundQtyUp(double raw, {double? step}) {
-  if (step == null || step <= 0) return raw;
-  return ((raw / step) - 1e-9).ceilToDouble() * step;
 }
 
 /// Fallback minimum order value (USDT) for exchanges that don't report one.
