@@ -63,12 +63,12 @@ class _UniverseViewState extends State<UniverseView> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: AppTextField(
             controller: _controller,
-            prefixIcon: const Icon(Icons.search),
+            prefixIcon: const Icon(AppIcons.search_outlined_24),
             hintText: 'Поиск монеты (например, BTC)',
             suffixIcon: _query.isEmpty
                 ? null
                 : IconButton(
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: const Icon(AppIcons.x_mark_m_outlined_24, size: 20),
                     tooltip: 'Очистить',
                     onPressed: _clearQuery,
                   ),

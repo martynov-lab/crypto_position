@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class TradeCalendar extends StatelessWidget {
   final DateTime month;
@@ -58,7 +59,7 @@ class TradeCalendar extends StatelessWidget {
         IconButton(
           onPressed: () =>
               onMonthChanged(DateTime(month.year, month.month - 1)),
-          icon: const Icon(Icons.chevron_left),
+          icon: const Icon(AppIcons.arrow_left_l_outlined_24),
         ),
         Text(
           '${months[month.month - 1]} ${month.year}',
@@ -67,7 +68,7 @@ class TradeCalendar extends StatelessWidget {
         IconButton(
           onPressed: () =>
               onMonthChanged(DateTime(month.year, month.month + 1)),
-          icon: const Icon(Icons.chevron_right),
+          icon: const Icon(AppIcons.arrow_right_l_outlined_24),
         ),
       ],
     );

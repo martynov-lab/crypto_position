@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:screener/screener.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// Live signals as a table keyed by instrument (newest wins), best quality
 /// first. Falls back to a `GET /summary` snapshot before the first event.
@@ -172,7 +173,11 @@ class _FallbackBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, size: 18, color: scheme.onTertiaryContainer),
+          Icon(
+            AppIcons.question_outlined_24,
+            size: 18,
+            color: scheme.onTertiaryContainer,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

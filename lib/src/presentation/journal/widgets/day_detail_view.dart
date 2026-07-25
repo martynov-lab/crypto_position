@@ -1,5 +1,6 @@
 import 'package:exchange/exchange.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class DayDetailView extends StatelessWidget {
   final DateTime day;
@@ -32,7 +33,7 @@ class DayDetailView extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: onBack,
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(AppIcons.arrow_left_l_outlined_24),
               ),
               Text(dateStr, style: theme.textTheme.titleMedium),
               const SizedBox(width: 12),

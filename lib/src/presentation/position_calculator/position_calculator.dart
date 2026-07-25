@@ -130,7 +130,7 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
                 ),
                 IconButton.filled(
                   onPressed: wm.addTakeProfit,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(AppIcons.plus_outlined_24),
                 ),
               ],
             ),
@@ -164,7 +164,7 @@ class PositionCalculator extends ElementaryWidget<PositionCalculatorWm> {
                     if (entries.length > 1)
                       IconButton(
                         onPressed: () => wm.removeTakeProfit(i),
-                        icon: const Icon(Icons.remove_circle_outline),
+                        icon: const Icon(AppIcons.delete_outlined_24),
                         color: Theme.of(context).colorScheme.error,
                       ),
                   ],

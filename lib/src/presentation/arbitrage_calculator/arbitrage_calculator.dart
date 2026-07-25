@@ -178,7 +178,7 @@ class _CoinSearch extends StatelessWidget {
             AppTextField(
               controller: wm.searchController,
               labelText: 'Монета (фьючерс)',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(AppIcons.search_outlined_24),
             ),
             ValueListenableBuilder<List<String>>(
               valueListenable: wm.candidates,

@@ -55,7 +55,7 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
         actions: [
           Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.history),
+              icon: const Icon(AppIcons.story_outlined_24),
               tooltip: 'История за 3 дня',
               onPressed: () => _showSpreadRange(context, wm),
             ),
@@ -510,7 +510,11 @@ class _UnpricedBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber, size: 18, color: scheme.onErrorContainer),
+          Icon(
+            AppIcons.warning_outlined_24,
+            size: 18,
+            color: scheme.onErrorContainer,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

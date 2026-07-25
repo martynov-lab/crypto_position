@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../tokens/app_colors.dart';
+import '../tokens/app_icons.dart';
 import '../tokens/app_radius.dart';
 import '../tokens/app_spacing.dart';
 
@@ -173,7 +174,7 @@ class AppTextField extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.error_outline,
+                  AppIcons.warning_outlined_24,
                   size: 14,
                   color: AppColors.negative,
                 ),
@@ -199,7 +200,7 @@ class AppTextField extends StatelessWidget {
       onTap: onHelpPressed,
       radius: 16,
       child: const Icon(
-        Icons.help_outline,
+        AppIcons.question_outlined_24,
         size: 16,
         color: AppColors.textTertiary,
       ),

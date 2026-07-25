@@ -69,17 +69,17 @@ class SettingsView extends StatelessWidget {
                 ButtonSegment(
                   value: ThemeMode.system,
                   label: Text('Системная'),
-                  icon: Icon(Icons.brightness_auto),
+                  icon: Icon(AppIcons.cursor_outlined_24),
                 ),
                 ButtonSegment(
                   value: ThemeMode.light,
                   label: Text('Светлая'),
-                  icon: Icon(Icons.light_mode),
+                  icon: Icon(AppIcons.theme_outlined_24),
                 ),
                 ButtonSegment(
                   value: ThemeMode.dark,
                   label: Text('Тёмная'),
-                  icon: Icon(Icons.dark_mode),
+                  icon: Icon(AppIcons.theme_filled_24),
                 ),
               ],
               selected: {themeNotifier.mode},
@@ -211,7 +211,7 @@ class _ApiConnectionCard extends StatelessWidget {
         Row(
           children: [
             Icon(
-              Icons.check_circle,
+              AppIcons.check_outlined_24,
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
@@ -237,14 +237,14 @@ class _ApiConnectionCard extends StatelessWidget {
         AppTextField(
           controller: connection.apiKeyController,
           labelText: 'API Key',
-          prefixIcon: const Icon(Icons.vpn_key),
+          prefixIcon: const Icon(AppIcons.passcode_outlined_24),
         ),
         const SizedBox(height: 16),
         AppTextField(
           controller: connection.apiSecretController,
           obscureText: true,
           labelText: 'API Secret',
-          prefixIcon: const Icon(Icons.lock),
+          prefixIcon: const Icon(AppIcons.lock_outlined_24),
         ),
         if (passphraseController != null) ...[
           const SizedBox(height: 16),
@@ -252,7 +252,7 @@ class _ApiConnectionCard extends StatelessWidget {
             controller: passphraseController,
             obscureText: true,
             labelText: 'Passphrase',
-            prefixIcon: const Icon(Icons.password),
+            prefixIcon: const Icon(AppIcons.password_outlined_24),
           ),
         ],
         const SizedBox(height: 16),
@@ -260,7 +260,7 @@ class _ApiConnectionCard extends StatelessWidget {
           width: double.infinity,
           child: AppButton(
             onPressed: connection.onSaveCredentials,
-            icon: const Icon(Icons.add),
+            icon: const Icon(AppIcons.plus_outlined_24),
             label: 'Добавить',
           ),
         ),

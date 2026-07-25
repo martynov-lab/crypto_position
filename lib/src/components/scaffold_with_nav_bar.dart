@@ -2,6 +2,7 @@ import 'package:crypto_position/src/tab_badge_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class ScaffoldWithNavBar extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -23,27 +24,27 @@ class ScaffoldWithNavBar extends StatelessWidget {
             NavigationDestination(
               icon: Badge(
                 isLabelVisible: badges.mainBadge.value,
-                child: const Icon(Icons.home),
+                child: const Icon(AppIcons.home_outlined_24),
               ),
               label: 'Main',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.calculate),
+              icon: Icon(AppIcons.list_stack_outlined_24),
               label: 'Calculator',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.menu_book),
+              icon: Icon(AppIcons.manual_outlined_24),
               label: 'Journal',
             ),
             NavigationDestination(
               icon: Badge(
                 isLabelVisible: badges.screenerBadge.value,
-                child: const Icon(Icons.trending_up),
+                child: const Icon(AppIcons.flash_outlined_24),
               ),
               label: 'Screener',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.settings),
+              icon: Icon(AppIcons.settings_outlined_24),
               label: 'Settings',
             ),
           ],
