@@ -76,19 +76,20 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
               ),
             );
           }
-          return ValueListenableBuilder<List<SpreadPoint>>(
-            valueListenable: wm.points,
-            builder: (context, points, _) {
-              return ValueListenableBuilder<WatchMeta?>(
-                valueListenable: wm.meta,
-                builder: (context, meta, _) {
+          return ValueListenableBuilder<PinnedPair>(
+            valueListenable: wm.pinned,
+            builder: (context, pinned, _) {
+              return ValueListenableBuilder<List<SpreadPoint>>(
+                valueListenable: wm.points,
+                builder: (context, points, _) {
                   return ValueListenableBuilder<int>(
                     valueListenable: wm.bucketMs,
                     builder: (context, bucket, _) {
                       final view = downsampleSpread(points, bucket);
                       return ListView(
                         children: [
-                          _Header(wm: wm, points: view, meta: meta),
+                          _Header(points: view, pinned: pinned),
+                          _PairPickers(wm: wm, pinned: pinned),
                           _TimeframeSelector(
                             current: bucket,
                             onSelect: wm.setTimeframe,
@@ -100,6 +101,8 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                               child: view.isEmpty
                                   ? _WaitingForData(
                                       connectionState: wm.connectionState,
+                                      noData: wm.noData,
+                                      onRetry: wm.retry,
                                     )
                                   : SpreadLineChart(
                                       // Entry (In) spread as the single line;
@@ -115,25 +118,17 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
                                             ),
                                       ],
                                       timeframeMin: 0,
-                                      buyLabel: meta?.longExchange ??
-                                          wm.longExchange,
-                                      sellLabel: meta?.shortExchange ??
-                                          wm.shortExchange,
+                                      buyLabel: pinned.long,
+                                      sellLabel: pinned.short,
                                     ),
                             ),
                           ),
                           const Divider(height: 1),
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: ArbitrageCalculator(
-                              embedded: true,
-                              initialBase: args.instrument.base,
-                              initialExchange1:
-                                  _exchangeByName(args.longExchange),
-                              initialExchange2:
-                                  _exchangeByName(args.shortExchange),
-                              initialEntrySpreadPct: args.entrySpreadPct,
-                            ),
+                          _Calculator(
+                            base: args.instrument.base,
+                            pinned: pinned,
+                            entrySpreadPct: args.entrySpreadPct ??
+                                _entryPercent(view),
                           ),
                         ],
                       );
@@ -198,30 +193,37 @@ class CoinChartScreen extends ElementaryWidget<CoinChartWm> {
     );
   }
 
-  /// Maps a screener exchange name (`bybit`, `okx`, …) to the app's
-  /// [ExchangeId] by its stable key; null when unknown.
-  static ExchangeId? _exchangeByName(String? name) {
-    final key = name?.toLowerCase();
-    for (final e in ExchangeId.values) {
-      if (e.key == key) return e;
-    }
-    return null;
-  }
+}
 
+/// Maps a screener exchange name (`bybit`, `okx`, …) to the app's [ExchangeId]
+/// by its stable key; null when the app has no market-data provider for it
+/// (the screener covers more venues than [ExchangeId]).
+ExchangeId? _exchangeByName(String? name) {
+  final key = name?.toLowerCase();
+  for (final e in ExchangeId.values) {
+    if (e.key == key) return e;
+  }
+  return null;
+}
+
+/// Latest entry spread as the plain percent number the calculator's "Спред
+/// входа" field expects (e.g. `0.82` for 0.82%).
+double? _entryPercent(List<SpreadPoint> points) {
+  if (points.isEmpty) return null;
+  return double.tryParse(Decimals.toPercentInput(points.last.entryPct) ?? '');
 }
 
 /// Pinned pair + current In/Out values above the chart.
 class _Header extends StatelessWidget {
-  final CoinChartWm wm;
   final List<SpreadPoint> points;
-  final WatchMeta? meta;
+  final PinnedPair pinned;
 
-  const _Header({required this.wm, required this.points, required this.meta});
+  const _Header({required this.points, required this.pinned});
 
   @override
   Widget build(BuildContext context) {
-    final long = meta?.longExchange ?? wm.longExchange;
-    final short = meta?.shortExchange ?? wm.shortExchange;
+    final long = pinned.long;
+    final short = pinned.short;
     final latest = points.isEmpty ? null : points.last;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -303,7 +305,16 @@ class _ValueChip extends StatelessWidget {
 class _WaitingForData extends StatelessWidget {
   final ValueListenable<WsConnectionState> connectionState;
 
-  const _WaitingForData({required this.connectionState});
+  /// Set once the watch timed out without a snapshot — the coin has no live
+  /// spread right now, which would otherwise show as an endless spinner.
+  final ValueListenable<bool> noData;
+  final VoidCallback onRetry;
+
+  const _WaitingForData({
+    required this.connectionState,
+    required this.noData,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -313,8 +324,209 @@ class _WaitingForData extends StatelessWidget {
         if (state != WsConnectionState.connected) {
           return const Center(child: Text('Нет соединения со скринером'));
         }
-        return const Center(child: CircularProgressIndicator());
+        return ValueListenableBuilder<bool>(
+          valueListenable: noData,
+          builder: (context, noData, _) {
+            if (!noData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Сейчас по этой монете нет живого спреда: котировки '
+                      'приходят меньше чем с двух выбранных площадок.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: onRetry,
+                      child: const Text('Повторить'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       },
+    );
+  }
+}
+
+/// Long/short venue pickers over the chart: the same two-dropdown shape as the
+/// calculator's exchange pickers, limited to the venues that list this coin and
+/// are enabled in the screener filters. Changing one re-pins the watch.
+class _PairPickers extends StatelessWidget {
+  final CoinChartWm wm;
+  final PinnedPair pinned;
+
+  const _PairPickers({required this.wm, required this.pinned});
+
+  @override
+  Widget build(BuildContext context) {
+    final venues = wm.venues;
+    if (venues.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _VenueDropdown(
+              label: 'Лонг (покупка)',
+              value: pinned.long,
+              options: venues,
+              exclude: pinned.short,
+              onChanged: (value) =>
+                  wm.repin(long: value, short: pinned.short),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _VenueDropdown(
+              label: 'Шорт (продажа)',
+              value: pinned.short,
+              options: venues,
+              exclude: pinned.long,
+              onChanged: (value) => wm.repin(long: pinned.long, short: value),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VenueDropdown extends StatelessWidget {
+  final String label;
+  final String? value;
+  final String? exclude;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+
+  const _VenueDropdown({
+    required this.label,
+    required this.value,
+    required this.exclude,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: options.contains(value) ? value : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      ),
+      items: [
+        for (final venue in options)
+          DropdownMenuItem(
+            enabled: venue != exclude,
+            value: venue,
+            child: Text(
+              // Venues the app has no market data for still draw the chart,
+              // but the calculator below can't price them.
+              _exchangeByName(venue) == null ? '$venue · без расчёта' : venue,
+              style: venue == exclude
+                  ? TextStyle(color: Theme.of(context).disabledColor)
+                  : null,
+            ),
+          ),
+      ],
+      onChanged: (venue) {
+        if (venue != null && venue != exclude) onChanged(venue);
+      },
+    );
+  }
+}
+
+/// The embedded profitability calculator, pinned to the same pair as the chart.
+/// Keyed by the pair so picking another venue rebuilds it with the new legs;
+/// the key is stable while the pair is, so typed inputs survive chart ticks.
+class _Calculator extends StatelessWidget {
+  final String base;
+  final PinnedPair pinned;
+  final double? entrySpreadPct;
+
+  const _Calculator({
+    required this.base,
+    required this.pinned,
+    required this.entrySpreadPct,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final long = pinned.long;
+    final short = pinned.short;
+    if (long == null || short == null) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: Text('Ожидание пары площадок…')),
+      );
+    }
+    final unpriced = [
+      for (final venue in [long, short])
+        if (_exchangeByName(venue) == null) venue,
+    ];
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (unpriced.isNotEmpty) ...[
+            _UnpricedBanner(venues: unpriced),
+            const SizedBox(height: 12),
+          ],
+          ArbitrageCalculator(
+            key: ValueKey('$long/$short'),
+            embedded: true,
+            initialBase: base,
+            initialExchange1: _exchangeByName(long),
+            initialExchange2: _exchangeByName(short),
+            initialEntrySpreadPct: entrySpreadPct,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Warns that a leg's venue is outside the app's market-data providers, so the
+/// calculator silently priced the trade on other exchanges.
+class _UnpricedBanner extends StatelessWidget {
+  final List<String> venues;
+
+  const _UnpricedBanner({required this.venues});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber, size: 18, color: scheme.onErrorContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Приложение не работает с ${venues.join(', ')} — расчёт ниже '
+              'сделан по другим площадкам, а не по паре на графике.',
+              style: TextStyle(color: scheme.onErrorContainer, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

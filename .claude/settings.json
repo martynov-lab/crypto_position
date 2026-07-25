@@ -47,7 +47,10 @@
       "Bash(py --version)",
       "PowerShell(Add-Type -AssemblyName System.Drawing; $b=[System.Drawing.Bitmap]::FromFile\\(\"$PWD\\\\assets\\\\logo.png\"\\); \"Size: $\\($b.Width\\)x$\\($b.Height\\)  Pixelformat: $\\($b.PixelFormat\\)\"; $b.Dispose\\(\\))",
       "PowerShell(& \"C:\\\\Temp\\\\claude\\\\c--Users-arovit-Projects-crypto-position\\\\4b4751fe-924c-4976-97b5-ae2e91dae735\\\\scratchpad\\\\make_ico.ps1\" \"$PWD\\\\assets\\\\logo.png\" \"$PWD\\\\windows\\\\runner\\\\resources\\\\app_icon.ico\")",
-      "PowerShell(Add-Type -AssemblyName System.Drawing; $i=New-Object System.Drawing.Icon\\(\"$PWD\\\\windows\\\\runner\\\\resources\\\\app_icon.ico\",256,256\\); \"Loaded ICO ok, largest frame: $\\($i.Width\\)x$\\($i.Height\\)\"; $i.Dispose\\(\\))"
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $i=New-Object System.Drawing.Icon\\(\"$PWD\\\\windows\\\\runner\\\\resources\\\\app_icon.ico\",256,256\\); \"Loaded ICO ok, largest frame: $\\($i.Width\\)x$\\($i.Height\\)\"; $i.Dispose\\(\\))",
+      "PowerShell(flutter analyze lib/src/presentation/screener packages/screener 2>&1)",
+      "PowerShell(flutter analyze 2>&1)",
+      "PowerShell($fp = \\(Get-Command flutter\\).Source; $sdk = Split-Path \\(Split-Path $fp -Parent\\) -Parent; $f = Join-Path $sdk \"packages\\\\flutter\\\\lib\\\\src\\\\material\\\\dropdown.dart\"; Select-String -Path $f -Pattern \"didUpdateWidget\" -Context 0,8 | Select-Object -First 20)"
     ]
   }
 }

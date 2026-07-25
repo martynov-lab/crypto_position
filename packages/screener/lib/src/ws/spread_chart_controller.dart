@@ -20,9 +20,9 @@ class SpreadChartController {
   final int windowMs;
 
   /// The pinned long/short pair (from the tapped signal), or null to let the
-  /// server pick.
-  final String? longExchange;
-  final String? shortExchange;
+  /// server pick. Changed by [repin].
+  String? _longExchange;
+  String? _shortExchange;
 
   final _points = ValueNotifier<List<SpreadPoint>>(const []);
   final _meta = ValueNotifier<WatchMeta?>(null);
@@ -32,9 +32,13 @@ class SpreadChartController {
     this._client, {
     required this.instrument,
     this.windowMs = 900000,
-    this.longExchange,
-    this.shortExchange,
-  });
+    String? longExchange,
+    String? shortExchange,
+  })  : _longExchange = longExchange,
+        _shortExchange = shortExchange;
+
+  String? get longExchange => _longExchange;
+  String? get shortExchange => _shortExchange;
 
   /// Points in the current window, oldest → newest.
   ValueListenable<List<SpreadPoint>> get points => _points;
@@ -50,14 +54,30 @@ class SpreadChartController {
     final ok = _client.watch(
       instrument,
       windowMs: windowMs,
-      longExchange: longExchange,
-      shortExchange: shortExchange,
+      longExchange: _longExchange,
+      shortExchange: _shortExchange,
     );
     if (!ok) {
       unawaited(_sub?.cancel());
       _sub = null;
     }
     return ok;
+  }
+
+  /// Re-pins the chart to another long/short pair (or to `null` = server's
+  /// pick): clears the buffer and re-sends `watch`, which the server refreshes
+  /// in place — so the watch cap is not re-checked and no `unwatch` is needed.
+  void repin({String? longExchange, String? shortExchange}) {
+    _longExchange = longExchange;
+    _shortExchange = shortExchange;
+    _points.value = const [];
+    _meta.value = null;
+    _client.watch(
+      instrument,
+      windowMs: windowMs,
+      longExchange: longExchange,
+      shortExchange: shortExchange,
+    );
   }
 
   void _onUpdate(ScreenerServerMessage message) {

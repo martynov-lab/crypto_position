@@ -26,7 +26,16 @@ class ScreenerScreenWm
   ValueListenable<List<InstrumentCoverage>> get universe => _service.universe;
   ValueListenable<String?> get error => _service.error;
 
+  /// Rebuild trigger for filter-dependent views (the universe tab narrows to
+  /// the enabled venues).
+  Listenable get filters => _service.effectiveConfig;
+
   ClientConfig get clientConfig => _service.clientConfig;
+
+  /// Exchanges currently switched on in the filters (all of them when the
+  /// config leaves `exchanges` unset).
+  Set<String> get enabledExchanges =>
+      {...clientConfig.exchanges ?? ScreenerDefaults.allExchanges};
 
   void applyConfig(ClientConfig config) => _service.reconfigure(config);
 

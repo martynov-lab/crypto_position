@@ -233,6 +233,43 @@ void main() {
     controller.dispose();
     expect(channel.sent.any((m) => m['type'] == 'unwatch'), isTrue);
   });
+
+  test('SpreadChartController.repin re-watches the new pair and clears state',
+      () async {
+    client.start();
+    channel.emit({'type': 'subscribed', 'config': {}});
+    await flush();
+
+    const instrument = Instrument(base: 'ARB', quote: 'USDT', kind: 'perp');
+    final controller = SpreadChartController(client, instrument: instrument);
+    expect(controller.start(), isTrue);
+    channel.emit({
+      'type': 'watch_snapshot',
+      'instrument': {'base': 'ARB', 'quote': 'USDT', 'kind': 'perp'},
+      'resolution_ms': 1000,
+      'window_ms': 900000,
+      'long_exchange': 'mexc',
+      'short_exchange': 'kucoin',
+      'points': [
+        {'ts_ms': 1000, 'net_pct': '0.01'},
+      ],
+    });
+    await flush();
+    expect(controller.points.value, hasLength(1));
+    channel.sent.clear();
+
+    controller.repin(longExchange: 'bybit', shortExchange: 'okx');
+    expect(controller.longExchange, 'bybit');
+    expect(controller.shortExchange, 'okx');
+    // The stale pair's buffer is dropped so the chart can't mix two pairs.
+    expect(controller.points.value, isEmpty);
+    expect(controller.meta.value, isNull);
+    expect(channel.sent.single['type'], 'watch');
+    expect(channel.sent.single['long_exchange'], 'bybit');
+    expect(channel.sent.single['short_exchange'], 'okx');
+
+    controller.dispose();
+  });
 }
 
 /// In-memory [WebSocketChannel]: captures client sends, lets tests emit frames.

@@ -67,6 +67,11 @@ class ScreenerService {
   /// Latest server-reported error (invalid config, `unauthorized`, ...).
   ValueListenable<String?> get error => _error;
 
+  /// Fires when the server acks a (re)subscribe — i.e. when [clientConfig]
+  /// may have changed, for UI that narrows itself by the active filters.
+  ValueListenable<Map<String, Object?>?> get effectiveConfig =>
+      _client.effectiveConfig;
+
   ClientConfig get clientConfig => _client.clientConfig;
 
   /// Opens a live spread-chart watch for [instrument], pinned to the

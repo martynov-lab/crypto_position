@@ -7,6 +7,7 @@ import 'package:crypto_position/src/presentation/screener/widgets/universe_view.
 import 'package:elementary/elementary.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:screener/screener.dart';
 
 /// Arbitrage screener tab: live signals, the traded-instrument universe, and
 /// the filters that drive the WS `subscribe`.
@@ -50,7 +51,25 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                     ),
                   ),
                 ),
-                UniverseView(universe: wm.universe),
+                UniverseView(
+                  universe: wm.universe,
+                  summary: wm.summary,
+                  filters: wm.filters,
+                  enabledExchanges: () => wm.enabledExchanges,
+                  onRefresh: wm.refreshSummary,
+                  // No pinned pair from the catalog: the server picks the best
+                  // one, and the chart screen lets the user change it.
+                  onTap: (context, coverage) => context.push(
+                    '/coin',
+                    extra: CoinChartArgs(
+                      instrument: Instrument(
+                        base: coverage.base,
+                        quote: coverage.quote,
+                        kind: 'perp',
+                      ),
+                    ),
+                  ),
+                ),
                 FiltersView(
                   initial: wm.clientConfig,
                   onApply: wm.applyConfig,
