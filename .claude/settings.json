@@ -50,7 +50,24 @@
       "PowerShell(Add-Type -AssemblyName System.Drawing; $i=New-Object System.Drawing.Icon\\(\"$PWD\\\\windows\\\\runner\\\\resources\\\\app_icon.ico\",256,256\\); \"Loaded ICO ok, largest frame: $\\($i.Width\\)x$\\($i.Height\\)\"; $i.Dispose\\(\\))",
       "PowerShell(flutter analyze lib/src/presentation/screener packages/screener 2>&1)",
       "PowerShell(flutter analyze 2>&1)",
-      "PowerShell($fp = \\(Get-Command flutter\\).Source; $sdk = Split-Path \\(Split-Path $fp -Parent\\) -Parent; $f = Join-Path $sdk \"packages\\\\flutter\\\\lib\\\\src\\\\material\\\\dropdown.dart\"; Select-String -Path $f -Pattern \"didUpdateWidget\" -Context 0,8 | Select-Object -First 20)"
+      "PowerShell($fp = \\(Get-Command flutter\\).Source; $sdk = Split-Path \\(Split-Path $fp -Parent\\) -Parent; $f = Join-Path $sdk \"packages\\\\flutter\\\\lib\\\\src\\\\material\\\\dropdown.dart\"; Select-String -Path $f -Pattern \"didUpdateWidget\" -Context 0,8 | Select-Object -First 20)",
+      "PowerShell($p = @\\(\"C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe\",\"C:\\\\Program Files\\\\Inno Setup 6\\\\ISCC.exe\"\\); foreach\\($i in $p\\){ if\\(Test-Path $i\\){ \"FOUND: $i\" } }; try { \\(Get-Command iscc -ErrorAction Stop\\).Source } catch { \"iscc not in PATH\" }; try { winget list --id JRSoftware.InnoSetup 2>$null | Select-Object -Last 3 } catch {})",
+      "PowerShell(winget install --id JRSoftware.InnoSetup --accept-source-agreements --accept-package-agreements --silent)",
+      "PowerShell(winget install --id JRSoftware.InnoSetup --source winget --accept-package-agreements --silent)",
+      "PowerShell(flutter build windows --release 2>&1)",
+      "PowerShell([guid]::NewGuid\\(\\).ToString\\(\\).ToUpper\\(\\); if\\(Test-Path \"C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe\"\\){\"ISCC: C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\ISCC.exe\"} elseif\\(Test-Path \"C:\\\\Program Files\\\\Inno Setup 6\\\\ISCC.exe\"\\){\"ISCC: C:\\\\Program Files\\\\Inno Setup 6\\\\ISCC.exe\"} else {\"ISCC not found\"})",
+      "PowerShell(Get-ChildItem -Path \"$env:LOCALAPPDATA\\\\Programs\",\"$env:ProgramFiles\",\"${env:ProgramFiles\\(x86\\)}\" -Filter \"ISCC.exe\" -Recurse -Depth 4 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; \"---\"; winget list --id JRSoftware.InnoSetup --source winget)",
+      "PowerShell(& \"$PSScriptRoot\" 2>$null; pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\installer\\\\build_installer.ps1\" 2>&1 | Select-Object -Last 30)",
+      "PowerShell(Get-Item \"C:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\build\\\\installer\\\\Cryptovit-0.1.0-windows-x64-setup.exe\" | Select-Object Name, @{n='MB';e={[math]::Round\\($_.Length/1MB,1\\)}}; \\(Get-Item \"C:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\build\\\\windows\\\\x64\\\\runner\\\\Release\\\\crypto_position.exe\"\\).VersionInfo | Select-Object ProductName, CompanyName, FileDescription, FileVersion)",
+      "PowerShell($v = \\(Get-Item \"C:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\build\\\\windows\\\\x64\\\\runner\\\\Release\\\\crypto_position.exe\"\\).VersionInfo; \"ProductName=$\\($v.ProductName\\) | CompanyName=$\\($v.CompanyName\\) | FileDescription=$\\($v.FileDescription\\) | FileVersion=$\\($v.FileVersion\\)\")",
+      "PowerShell(pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\installer\\\\build_installer.ps1\" 2>&1 | Select-Object -Last 6)",
+      "Bash(git check-ignore *)",
+      "PowerShell(pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\installer\\\\build_installer.ps1\" 2>&1 | Select-Object -Last 5)",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\build\\\\windows\\\\x64\\\\runner\\\\Release\\\\data\\\\app.so\"\\); $text = [System.Text.Encoding]::ASCII.GetString\\($bytes\\); \"ARB_TOKEN value embedded: $\\($text.Contains\\('87c0bf67c1b94f05db5f011720aca76d21baa01713aeba0ade6ba39a5d572e5d'\\)\\)\"; \"ARB_HOST value embedded: $\\($text.Contains\\('arovit-screener.duckdns.org'\\)\\)\")",
+      "Read(//c/Users/arovit/AppData/Roaming/com.example/**)",
+      "Read(//c/Users/arovit/AppData/Roaming/**)",
+      "Read(//c/Users/arovit/AppData/Roaming/com.example/crypto_position/**)",
+      "Read(//c/Users/arovit/AppData/Roaming/Cryptovit/Cryptovit/**)"
     ]
   }
 }

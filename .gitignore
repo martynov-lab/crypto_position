@@ -46,3 +46,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Installer build secrets (ARB_TOKEN)
+/installer/build.env
