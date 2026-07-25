@@ -85,7 +85,9 @@
       "Bash(npx --yes js-yaml .github/workflows/android-telegram.yml)",
       "Bash(ls /c/Users/arovit/AppData/Local/Android/sdk/build-tools/ | tail -3)",
       "Read(//c/Users/arovit/AppData/Local/Android/sdk/build-tools//**)",
-      "Bash(\"/c/Users/arovit/AppData/Local/Android/sdk/build-tools/35.0.0/apksigner.bat\" verify *)"
+      "Bash(\"/c/Users/arovit/AppData/Local/Android/sdk/build-tools/35.0.0/apksigner.bat\" verify *)",
+      "PowerShell($b = [System.IO.File]::ReadAllBytes\\('c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\assets\\\\flutter-icons\\\\lemonade_icons_icons.dart'\\)[0..7]; \\($b | ForEach-Object { $_.ToString\\('X2'\\) }\\) -join ' ')",
+      "PowerShell($f='c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\assets\\\\flutter-icons\\\\lemonade_icons_icons.dart'; \\(Get-Item $f\\).Length; \\(Get-Content $f | Measure-Object -Maximum -Property Length\\).Maximum)"
     ]
   }
 }

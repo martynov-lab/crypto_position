@@ -1,4 +1,5 @@
 export 'src/tokens/app_colors.dart';
+export 'src/tokens/app_icons.dart';
 export 'src/tokens/app_spacing.dart';
 export 'src/tokens/app_radius.dart';
 export 'src/tokens/app_typography.dart';
