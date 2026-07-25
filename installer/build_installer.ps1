@@ -53,4 +53,4 @@ Write-Host "Compiling installer for version $version..."
 & $iscc "/DAppVersion=$version" $issFile
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-Write-Host "Installer: $(Join-Path $repoRoot "build\installer\Cryptovit-$version-windows-x64-setup.exe")"
+Write-Host "Installer: $(Join-Path $repoRoot "build\release\Cryptovit-$version-windows-x64-setup.exe")"

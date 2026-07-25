@@ -1,11 +1,13 @@
-# Windows-сборка и установщик
+# Релизные сборки
 
-Установщик собирается Inno Setup 6 из релизной Flutter-сборки.
-На выходе — `build/installer/Cryptovit-<версия>-windows-x64-setup.exe`.
+Оба артефакта складываются в `build/release/`:
+
+- `Cryptovit-<версия>-windows-x64-setup.exe` — установщик Windows (Inno Setup 6)
+- `Cryptovit-<версия>-android.apk` — Android APK
 
 ## Разовая подготовка
 
-1. Установить Inno Setup 6 (нужен только на машине, где собирается инсталлятор):
+1. Установить Inno Setup 6 (нужен только для Windows-установщика):
 
    ```powershell
    winget install --id JRSoftware.InnoSetup --source winget
@@ -26,7 +28,7 @@
 ## Настройки сервера
 
 `build.env` читается построчно как `KEY=VALUE` и целиком передаётся в сборку
-через `--dart-define`. Приложение читает их в
+через `--dart-define` — одинаково для Windows и Android. Приложение читает их в
 [`ScreenerConfig`](../packages/screener/lib/src/screener_config.dart):
 
 | Ключ        | Назначение                                                        |
@@ -34,34 +36,42 @@
 | `ARB_HOST`  | Хост сервера скринера, можно с портом (`127.0.0.1:8080` для локального) |
 | `ARB_TOKEN` | Токен авторизации; пустой = запросы без токена (локальный сервер без auth) |
 
-Без `build.env` скрипт откажется собирать: иначе получился бы установщик,
-который молча не ходит на сервер.
+Без `build.env` скрипты откажутся собирать: иначе получилась бы сборка,
+которая молча не ходит на сервер.
 
 ## Сборка
 
-Из корня репозитория:
+Из корня репозитория — обе платформы сразу:
 
 ```powershell
-pwsh installer\build_installer.ps1
+pwsh scripts\build_release.ps1
 ```
 
-Что делает скрипт по шагам:
-
-1. Находит `ISCC.exe` — если Inno Setup не установлен, падает с подсказкой.
-2. Читает `version:` из `pubspec.yaml` (суффикс `+build` отбрасывается).
-3. Читает `build.env` и собирает из него список `--dart-define`.
-4. Запускает `flutter build windows --release` с этими define.
-5. Компилирует `cryptovit.iss`, передавая версию через `/DAppVersion`.
-
-Если релизная сборка уже свежая, шаги 3–4 можно пропустить:
+Только одна платформа:
 
 ```powershell
-pwsh installer\build_installer.ps1 -SkipFlutterBuild
+pwsh scripts\build_release.ps1 -Target windows
+pwsh scripts\build_release.ps1 -Target android
 ```
 
-## Установка
+Что происходит:
 
-Запустить полученный `Cryptovit-<версия>-windows-x64-setup.exe`.
+- **Windows** — делегируется в `installer\build_installer.ps1`: тот находит `ISCC.exe`,
+  берёт версию из `pubspec.yaml`, разворачивает `build.env` в `--dart-define`,
+  запускает `flutter build windows --release` и компилирует `cryptovit.iss`.
+- **Android** — `flutter build apk --release` с теми же `--dart-define`, затем APK
+  копируется из `build\app\outputs\flutter-apk\` в `build\release\` под именем с версией.
+
+Windows-установщик можно собрать и напрямую, минуя общий скрипт:
+
+```powershell
+pwsh installer\build_installer.ps1              # полная сборка
+pwsh installer\build_installer.ps1 -SkipFlutterBuild   # если Release уже свежий
+```
+
+## Установка Windows
+
+Запустить `Cryptovit-<версия>-windows-x64-setup.exe`.
 
 - Требует прав администратора (UAC), ставит в `C:\Program Files\Cryptovit`.
 - Язык мастера: русский или английский.
@@ -71,6 +81,12 @@ pwsh installer\build_installer.ps1 -SkipFlutterBuild
 Повторный запуск установщика новой версии обновляет установленную поверх:
 `AppId` в `cryptovit.iss` фиксирован, менять его нельзя, иначе Windows посчитает
 сборку отдельным приложением и рядом появится вторая установка.
+
+Пользовательские данные (`shared_preferences`, ключи бирж) лежат в
+`%APPDATA%\Cryptovit\Cryptovit\` — вне папки установки, поэтому обновление и
+удаление их не трогают. Путь собирается из `CompanyName` и `ProductName` в
+[`windows/runner/Runner.rc`](../windows/runner/Runner.rc): менять эти строки нельзя,
+иначе приложение начнёт смотреть в новую пустую папку.
 
 ## Смена версии
 
@@ -82,15 +98,19 @@ version: 0.1.0
 
 Правится там, в `.iss` дублировать не нужно.
 
-## Ограничения текущей сборки
+## Ограничения текущих сборок
 
-- **Visual C++ Redistributable не входит в пакет.** На машине, где собирался проект,
-  он уже есть, но на чистой Windows приложение не стартует. Для раздачи нужно
+- **Visual C++ Redistributable не входит в Windows-пакет.** На машине, где собирался
+  проект, он уже есть, но на чистой Windows приложение не стартует. Для раздачи нужно
   добавить в секцию `[Files]` файлы `msvcp140.dll`, `vcruntime140.dll`,
   `vcruntime140_1.dll` рядом с exe.
 - **Установщик не подписан** — на чужой машине SmartScreen покажет предупреждение
   «Windows защитила ваш компьютер». Лечится только сертификатом для подписи кода.
+- **APK подписан debug-ключом** — в `android/app/build.gradle.kts` для release стоит
+  `signingConfig = signingConfigs.getByName("debug")` (заглушка Flutter). Для локальной
+  установки годится, но ключ привязан к `~/.android/debug.keystore`: со сборки на другой
+  машине обновление поверх не встанет, и в Play такой APK не загрузить.
 - **`ARB_TOKEN` вшивается в бинарник в открытом виде** — `--dart-define` не шифрует,
-  строка достаётся из `data\app.so` обычным поиском. Считать установщик носителем
-  секрета нельзя: у всех, кому он роздан, есть и токен сервера.
-- Собирается только x64.
+  строка достаётся из `data\app.so` (и из APK) обычным поиском. Считать сборку носителем
+  секрета нельзя: у всех, кому она роздана, есть и токен сервера.
+- Windows собирается только под x64; APK — универсальный (fat), без разбивки по ABI.

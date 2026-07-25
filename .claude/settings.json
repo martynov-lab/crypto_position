@@ -67,7 +67,8 @@
       "Read(//c/Users/arovit/AppData/Roaming/com.example/**)",
       "Read(//c/Users/arovit/AppData/Roaming/**)",
       "Read(//c/Users/arovit/AppData/Roaming/com.example/crypto_position/**)",
-      "Read(//c/Users/arovit/AppData/Roaming/Cryptovit/Cryptovit/**)"
+      "Read(//c/Users/arovit/AppData/Roaming/Cryptovit/Cryptovit/**)",
+      "PowerShell(pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\scripts\\\\build_release.ps1\" 2>&1 | Select-Object -Last 20)"
     ]
   }
 }
