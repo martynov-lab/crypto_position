@@ -68,7 +68,24 @@
       "Read(//c/Users/arovit/AppData/Roaming/**)",
       "Read(//c/Users/arovit/AppData/Roaming/com.example/crypto_position/**)",
       "Read(//c/Users/arovit/AppData/Roaming/Cryptovit/Cryptovit/**)",
-      "PowerShell(pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\scripts\\\\build_release.ps1\" 2>&1 | Select-Object -Last 20)"
+      "PowerShell(pwsh -NoProfile -File \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\scripts\\\\build_release.ps1\" 2>&1 | Select-Object -Last 20)",
+      "Bash(java -version)",
+      "Bash(gh auth *)",
+      "Read(//c/Program Files/Android/Android Studio/jbr/bin/**)",
+      "Read(//c/Program Files/Java//**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/arovit/AppData/Local/Programs/**)",
+      "Bash(unzip -l app-release.apk)",
+      "Bash(awk '{print $1, $4}')",
+      "Bash(awk -F'/' '{split\\($0,a,\" \"\\); size[$1\"/\"$2]+=a[1]} END {for \\(k in size\\) printf \"%10.1f MB  %s\\\\n\", size[k]/1048576, k}')",
+      "PowerShell($pw = -join \\(\\(48..57\\) + \\(65..90\\) + \\(97..122\\) | Get-Random -Count 28 | ForEach-Object { [char]$_ }\\); New-Item -ItemType Directory -Force \"$env:USERPROFILE\\\\keystores\" | Out-Null; $ks = \"$env:USERPROFILE\\\\keystores\\\\cryptovit-upload.jks\"; if \\(Test-Path $ks\\) { \"KEYSTORE ALREADY EXISTS: $ks - aborting\" } else { & \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\" -genkeypair -v -keystore $ks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass $pw -keypass $pw -dname \"CN=Cryptovit, O=martynov-lab, C=RU\" ; \"EXIT=$LASTEXITCODE\"; \"PASSWORD=$pw\"; \"PATH=$ks\" })",
+      "PowerShell($out = \"C:\\\\Temp\\\\claude\\\\c--Users-arovit-Projects-crypto-position\\\\3d8a0d72-6ea5-487d-aeb3-14d8de8f72ee\\\\scratchpad\\\\keystore.base64.txt\"; [Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\(\"$env:USERPROFILE\\\\keystores\\\\cryptovit-upload.jks\"\\)\\) | Set-Content -NoNewline $out; \"Written: $out \\($\\(\\(Get-Item $out\\).Length\\) chars\\)\"; git -C \"c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\" status --porcelain)",
+      "Bash(python -c \"import yaml,sys; yaml.safe_load\\(open\\('.github/workflows/android-telegram.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)",
+      "Bash(npx --yes js-yaml .github/workflows/android-telegram.yml)",
+      "Bash(ls /c/Users/arovit/AppData/Local/Android/sdk/build-tools/ | tail -3)",
+      "Read(//c/Users/arovit/AppData/Local/Android/sdk/build-tools//**)",
+      "Bash(\"/c/Users/arovit/AppData/Local/Android/sdk/build-tools/35.0.0/apksigner.bat\" verify *)"
     ]
   }
 }

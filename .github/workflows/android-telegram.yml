@@ -1,0 +1,81 @@
+name: Android APK to Telegram
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.7
+          channel: stable
+          cache: true
+
+      - name: Restore keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=$GITHUB_WORKSPACE/android/upload-keystore.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - run: flutter pub get
+
+      # ARB_HOST/ARB_TOKEN reach the app through ScreenerConfig (String.fromEnvironment).
+      # Without them the build points at the default host with no token.
+      - name: Build release APKs
+        env:
+          ARB_HOST: ${{ secrets.ARB_HOST || 'arovit-screener.duckdns.org' }}
+          ARB_TOKEN: ${{ secrets.ARB_TOKEN }}
+        run: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=ARB_HOST="$ARB_HOST" \
+            --dart-define=ARB_TOKEN="$ARB_TOKEN"
+
+      # A universal APK is ~62 MB and Bot API rejects anything over 50 MB,
+      # so only the arm64 slice (~20 MB) is shipped.
+      - name: Send to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          version=$(grep -m1 '^version:' pubspec.yaml | cut -d: -f2 | tr -d ' \r' | cut -d+ -f1)
+          ref=${GITHUB_REF_NAME}
+          apk="cryptovit-$version-$ref-arm64.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$apk"
+
+          size=$(stat -c%s "$apk")
+          if [ "$size" -gt 49000000 ]; then
+            echo "APK is $size bytes, over the 50 MB Bot API limit" >&2
+            exit 1
+          fi
+
+          curl -sS -f -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
+            -F chat_id="$CHAT_ID" \
+            -F document=@"$apk" \
+            -F caption="Cryptovit $version (arm64)
+          ref: $ref
+          commit: ${GITHUB_SHA:0:7}
+          run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            -o /dev/null
