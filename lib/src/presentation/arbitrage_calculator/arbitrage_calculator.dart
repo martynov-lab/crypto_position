@@ -277,35 +277,18 @@ class _ExchangeDropdown extends StatelessWidget {
       listenable: Listenable.merge([value, exclude]),
       builder: (context, _) {
         final excluded = exclude.value;
-        return InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            border: const OutlineInputBorder(),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 4,
-            ),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<ExchangeId>(
-              isExpanded: true,
-              value: value.value,
-              items: [
-                for (final e in options)
-                  DropdownMenuItem(
-                    value: e,
-                    enabled: e != excluded,
-                    child: Text(
-                      e.label,
-                      style: e == excluded
-                          ? TextStyle(color: Theme.of(context).disabledColor)
-                          : null,
-                    ),
-                  ),
-              ],
-              onChanged: onChanged,
-            ),
-          ),
+        return AppDropdownField<ExchangeId>(
+          labelText: label,
+          value: value.value,
+          items: [
+            for (final e in options)
+              AppDropdownItem(
+                value: e,
+                label: e.label,
+                enabled: e != excluded,
+              ),
+          ],
+          onChanged: onChanged,
         );
       },
     );

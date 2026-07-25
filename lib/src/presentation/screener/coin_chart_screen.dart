@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:network/network.dart';
 import 'package:screener/screener.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// Route argument for the coin chart: the instrument plus the pinned long/short
 /// pair taken from the tapped signal (long = buy_exchange, short = sell).
@@ -371,7 +372,7 @@ class _PairPickers extends StatelessWidget {
     final venues = wm.venues;
     if (venues.length < 2) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Row(
         children: [
           Expanded(
@@ -417,31 +418,24 @@ class _VenueDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: options.contains(value) ? value : null,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      ),
+    return AppDropdownField<String>(
+      labelText: label,
+      hintText: 'Площадка',
+      value: value,
       items: [
         for (final venue in options)
-          DropdownMenuItem(
-            enabled: venue != exclude,
+          AppDropdownItem(
             value: venue,
-            child: Text(
-              // Venues the app has no market data for still draw the chart,
-              // but the calculator below can't price them.
-              _exchangeByName(venue) == null ? '$venue · без расчёта' : venue,
-              style: venue == exclude
-                  ? TextStyle(color: Theme.of(context).disabledColor)
-                  : null,
-            ),
+            // Venues the app has no market data for still draw the chart,
+            // but the calculator below can't price them.
+            label: _exchangeByName(venue) == null
+                ? '$venue · без расчёта'
+                : venue,
+            enabled: venue != exclude,
           ),
       ],
       onChanged: (venue) {
-        if (venue != null && venue != exclude) onChanged(venue);
+        if (venue != null) onChanged(venue);
       },
     );
   }
