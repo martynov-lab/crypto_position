@@ -1,3 +1,4 @@
+import 'package:crypto_position/src/market_data/market_data_provider.dart';
 import 'package:crypto_position/src/presentation/arbitrage_calculator/arbitrage_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -83,6 +84,46 @@ void main() {
 
       // notional = min(500,2000)*10 = 5000
       expect(r.notional, 5000);
+    });
+  });
+
+  group('executableSpreadPct', () {
+    test('buys the ask and sells the bid, quoted off the buy price', () {
+      final pct = executableSpreadPct(
+        buy: const Quote(bid: 99, ask: 100, last: 99.5),
+        sell: const Quote(bid: 101, ask: 102, last: 101.5),
+      );
+
+      // (101 - 100) / 100 = 1%. Mid-to-mid would have read 1.5% — the half
+      // book spread on each leg that the trade never actually gets.
+      expect(pct, closeTo(1.0, 1e-9));
+    });
+
+    test('falls back to mid when a book side is missing', () {
+      final pct = executableSpreadPct(
+        buy: const Quote(bid: 0, ask: 0, last: 100),
+        sell: const Quote(bid: 101, ask: 102, last: 101.5),
+      );
+
+      expect(pct, closeTo(1.0, 1e-9));
+    });
+
+    test('goes negative once the pair has inverted', () {
+      final pct = executableSpreadPct(
+        buy: const Quote(bid: 101, ask: 102, last: 101.5),
+        sell: const Quote(bid: 99, ask: 100, last: 99.5),
+      );
+
+      expect(pct, lessThan(0));
+    });
+
+    test('is null without a usable buy price', () {
+      final pct = executableSpreadPct(
+        buy: const Quote(bid: 0, ask: 0, last: 0),
+        sell: const Quote(bid: 101, ask: 102, last: 101.5),
+      );
+
+      expect(pct, isNull);
     });
   });
 }

@@ -30,8 +30,12 @@ const kLeverageSteps = <double>[1, 3, 5, 10, 15, 20, 25];
 /// Selectable chart timeframes, in minutes (bucket size per plotted point).
 const kTimeframesMin = <int>[1, 5, 15];
 
-/// Live-data poll cadence and how many raw samples are retained.
-const _pollInterval = Duration(seconds: 2);
+/// Poll cadences per data kind. Only the quote moves the chart, so it is the
+/// only one that needs to be fast: funding is settled hourly at best, and the
+/// depth snapshot only feeds the fill estimate and the entry plan.
+const _quoteInterval = Duration(seconds: 2);
+const _bookInterval = Duration(seconds: 10);
+const _fundingInterval = Duration(minutes: 1);
 
 /// Cap on retained raw (2s) samples (~3h). Bounds memory; the display buckets
 /// these by the selected timeframe, so history survives timeframe switches.
@@ -87,6 +91,12 @@ class ArbitrageCalculatorWm
   final _funding1 = ValueNotifier<FundingInfo?>(null);
   final _funding2 = ValueNotifier<FundingInfo?>(null);
   final _spreadSeries = ValueNotifier<List<SpreadSample>>(const []);
+
+  /// Timestamp where the seeded candle history ends and the live ask→bid
+  /// samples begin, or null before the seed lands. The two are measured
+  /// differently (see [spreadHistory]), so the chart marks the seam.
+  final _historyEndsMs = ValueNotifier<int?>(null);
+
   final _dataError = ValueNotifier<String?>(null);
   final _catalogLoading = ValueNotifier<bool>(false);
 
@@ -113,7 +123,9 @@ class ArbitrageCalculatorWm
   final _entryReport = ValueNotifier<EntryReport?>(null);
   final _entryBusy = ValueNotifier<bool>(false);
 
-  Timer? _pollTimer;
+  Timer? _quoteTimer;
+  Timer? _bookTimer;
+  Timer? _fundingTimer;
   int _pollGen = 0;
 
   /// Widget-provided initial selection is applied at most once, so a catalog
@@ -132,6 +144,7 @@ class ArbitrageCalculatorWm
   ValueListenable<FundingInfo?> get funding1 => _funding1;
   ValueListenable<FundingInfo?> get funding2 => _funding2;
   ValueListenable<List<SpreadSample>> get spreadSeries => _spreadSeries;
+  ValueListenable<int?> get historyEndsMs => _historyEndsMs;
   ValueListenable<String?> get dataError => _dataError;
   ValueListenable<bool> get catalogLoading => _catalogLoading;
   ValueListenable<ArbitrageResult?> get result => _result;
@@ -167,6 +180,10 @@ class ArbitrageCalculatorWm
   /// All exchanges with market data (regardless of the selected coin).
   List<ExchangeId> get availableExchangesAll => _registry.all;
 
+  /// True when the coin was handed in (screener) rather than searched for, so
+  /// the search field is pointless — the venue pickers still work.
+  bool get coinFixed => widget.initialBase != null;
+
   /// Exchanges offering [selectedBase]. Public market data needs no
   /// credentials; the trade layer checks for a live session on its own.
   List<ExchangeId> get availableExchanges {
@@ -195,13 +212,12 @@ class ArbitrageCalculatorWm
         // restart polling (without wiping the accumulated chart history) to
         // recover the data connection.
         if (_hasValidSelection &&
-            (_pollTimer == null || !_pollTimer!.isActive)) {
-          _startTimer();
+            (_quoteTimer == null || !_quoteTimer!.isActive)) {
+          _startTimers();
         }
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
-        _pollTimer?.cancel();
-        _pollTimer = null;
+        _cancelTimers();
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;
@@ -211,7 +227,7 @@ class ArbitrageCalculatorWm
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pollTimer?.cancel();
+    _cancelTimers();
     _registry.connectedListenable.removeListener(_loadCatalog);
     searchController.removeListener(_recomputeCandidates);
     searchController.dispose();
@@ -231,6 +247,7 @@ class ArbitrageCalculatorWm
     _funding1.dispose();
     _funding2.dispose();
     _spreadSeries.dispose();
+    _historyEndsMs.dispose();
     _dataError.dispose();
     _catalogLoading.dispose();
     _result.dispose();
@@ -278,10 +295,8 @@ class ArbitrageCalculatorWm
     _basesToExchanges.clear();
     final errors = <String>[];
     for (final exchange in _registry.all) {
-      final provider = _registry.provider(exchange);
-      if (provider == null) continue;
       try {
-        final instruments = await provider.fetchPerpInstruments();
+        final instruments = await _registry.instruments(exchange);
         final byBase = <String, PerpInstrument>{};
         for (final ins in instruments) {
           byBase[ins.base] = ins;
@@ -328,6 +343,19 @@ class ArbitrageCalculatorWm
       entrySpreadController.text = _fmtSpreadInput(entrySpreadPct);
     }
     _restartPolling();
+    // The signal says which venue to buy on, so the chart must not re-derive it
+    // from prices: a signal fired on a pair that has since inverted would draw
+    // upside down relative to the card the user tapped. Set after the restart,
+    // which clears the orientation. Only when the requested leg survived the
+    // availability narrowing above — otherwise the pair isn't the signal's.
+    final long = widget.initialExchange1;
+    if (long != null) {
+      if (_exchange1.value == long) {
+        _buyIsExchange1.value = true;
+      } else if (_exchange2.value == long) {
+        _buyIsExchange1.value = false;
+      }
+    }
   }
 
   /// Formats a percent number for the entry/exit spread fields, trimming
@@ -364,14 +392,17 @@ class ArbitrageCalculatorWm
     return base != null && e1 != null && e2 != null && e1 != e2;
   }
 
-  /// Selection changed: wipe the live data and start a fresh trace.
+  /// Selection changed: wipe the live data and start a fresh trace. Everything
+  /// collected for the previous pair is dropped here — nothing keeps running
+  /// for a coin or venue that is no longer on screen.
   void _restartPolling() {
-    _pollTimer?.cancel();
+    _cancelTimers();
     _quote1.value = null;
     _quote2.value = null;
     _funding1.value = null;
     _funding2.value = null;
     _spreadSeries.value = const [];
+    _historyEndsMs.value = null;
     _result.value = null;
     _fill1.value = null;
     _fill2.value = null;
@@ -384,17 +415,31 @@ class ArbitrageCalculatorWm
     _dataError.value = null;
 
     if (!_hasValidSelection) return;
-    _startTimer();
+    _startTimers();
   }
 
-  /// Kick off an immediate poll and the periodic timer, keeping any existing
-  /// chart history intact (used on start and on foreground resume).
-  void _startTimer() {
-    _pollTimer?.cancel();
+  /// Kicks off an immediate poll of each data kind plus its periodic timer,
+  /// keeping any existing chart history intact (used on start and on foreground
+  /// resume).
+  void _startTimers() {
+    _cancelTimers();
     final gen = ++_pollGen;
     unawaited(_seedSpreadHistory(gen));
-    unawaited(_poll(gen));
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll(gen));
+    unawaited(_pollQuotes(gen));
+    unawaited(_pollBooks(gen));
+    unawaited(_pollFunding(gen));
+    _quoteTimer = Timer.periodic(_quoteInterval, (_) => _pollQuotes(gen));
+    _bookTimer = Timer.periodic(_bookInterval, (_) => _pollBooks(gen));
+    _fundingTimer = Timer.periodic(_fundingInterval, (_) => _pollFunding(gen));
+  }
+
+  void _cancelTimers() {
+    _quoteTimer?.cancel();
+    _bookTimer?.cancel();
+    _fundingTimer?.cancel();
+    _quoteTimer = null;
+    _bookTimer = null;
+    _fundingTimer = null;
   }
 
   /// Locks the buy/sell orientation the first time both prices are known, so
@@ -447,50 +492,52 @@ class ArbitrageCalculatorWm
           .where((s) => s.tsMs > lastSeededTs)
           .toList();
       _spreadSeries.value = [...seeded, ...live];
+      _historyEndsMs.value = lastSeededTs;
     } on Object {
       // History is a nicety — a failure just leaves the chart to fill live.
     }
   }
 
-  Future<void> _poll(int gen) async {
+  /// The current pair's per-leg (provider, symbol) pairs, or null while the
+  /// selection is incomplete or the catalog doesn't cover it.
+  ({MarketDataProvider p1, String sym1, MarketDataProvider p2, String sym2})?
+  get _legs {
     final base = _selectedBase.value;
     final e1 = _exchange1.value;
     final e2 = _exchange2.value;
-    if (base == null || e1 == null || e2 == null) return;
+    if (base == null || e1 == null || e2 == null) return null;
     final sym1 = _byExchange[e1]?[base]?.symbol;
     final sym2 = _byExchange[e2]?[base]?.symbol;
     final p1 = _registry.provider(e1);
     final p2 = _registry.provider(e2);
-    if (sym1 == null || sym2 == null || p1 == null || p2 == null) return;
+    if (sym1 == null || sym2 == null || p1 == null || p2 == null) return null;
+    return (p1: p1, sym1: sym1, p2: p2, sym2: sym2);
+  }
 
+  /// Quotes — the fast loop: appends one chart sample per poll and refreshes
+  /// the entry plan.
+  Future<void> _pollQuotes(int gen) async {
+    final legs = _legs;
+    if (legs == null) return;
     try {
-      final results = await Future.wait([
-        p1.fetchQuote(sym1),
-        p2.fetchQuote(sym2),
-        p1.fetchFunding(sym1),
-        p2.fetchFunding(sym2),
-        p1.fetchOrderBook(sym1),
-        p2.fetchOrderBook(sym2),
+      final quotes = await Future.wait([
+        legs.p1.fetchQuote(legs.sym1),
+        legs.p2.fetchQuote(legs.sym2),
       ]);
       if (gen != _pollGen) return; // selection changed mid-flight
-      final q1 = results[0] as Quote;
-      final q2 = results[1] as Quote;
+      final q1 = quotes[0];
+      final q2 = quotes[1];
       _quote1.value = q1;
       _quote2.value = q2;
-      _funding1.value = results[2] as FundingInfo;
-      _funding2.value = results[3] as FundingInfo;
-      _book1 = results[4] as OrderBook;
-      _book2 = results[5] as OrderBook;
       _dataError.value = null;
 
       _lockOrientation(q1.mid, q2.mid);
       final buyIs1 = _buyIsExchange1.value ?? true;
-      final buyMid = buyIs1 ? q1.mid : q2.mid;
-      final sellMid = buyIs1 ? q2.mid : q1.mid;
-
-      if (buyMid > 0) {
-        // Quoted from the buy leg, so a fresh opportunity reads positive.
-        final spreadPct = (sellMid - buyMid) / buyMid * 100;
+      final spreadPct = executableSpreadPct(
+        buy: buyIs1 ? q1 : q2,
+        sell: buyIs1 ? q2 : q1,
+      );
+      if (spreadPct != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
         final list = [..._spreadSeries.value, SpreadSample(now, spreadPct)];
         if (list.length > _maxSamples) {
@@ -500,6 +547,45 @@ class ArbitrageCalculatorWm
       }
 
       _refreshPlanAndFills();
+    } on Object catch (e) {
+      if (gen != _pollGen) return;
+      _dataError.value = e.toString();
+    }
+  }
+
+  /// Depth snapshots — only the fill estimate and the entry plan read these,
+  /// so they lag the quotes without affecting the chart.
+  Future<void> _pollBooks(int gen) async {
+    final legs = _legs;
+    if (legs == null) return;
+    try {
+      final books = await Future.wait([
+        legs.p1.fetchOrderBook(legs.sym1),
+        legs.p2.fetchOrderBook(legs.sym2),
+      ]);
+      if (gen != _pollGen) return;
+      _book1 = books[0];
+      _book2 = books[1];
+      _refreshPlanAndFills();
+    } on Object catch (e) {
+      if (gen != _pollGen) return;
+      _dataError.value = e.toString();
+    }
+  }
+
+  /// Funding — the slow loop: the rate is settled hourly at best, so polling it
+  /// with the quotes was pure waste.
+  Future<void> _pollFunding(int gen) async {
+    final legs = _legs;
+    if (legs == null) return;
+    try {
+      final funding = await Future.wait([
+        legs.p1.fetchFunding(legs.sym1),
+        legs.p2.fetchFunding(legs.sym2),
+      ]);
+      if (gen != _pollGen) return;
+      _funding1.value = funding[0];
+      _funding2.value = funding[1];
     } on Object catch (e) {
       if (gen != _pollGen) return;
       _dataError.value = e.toString();
@@ -535,8 +621,7 @@ class ArbitrageCalculatorWm
       fundingRate2: f2.rate,
       intervalHours1: f1.intervalHours,
       intervalHours2: f2.intervalHours,
-      // Long the cheaper leg.
-      leg1IsLong: q1.mid <= q2.mid,
+      leg1IsLong: _leg1IsLong,
     );
     _result.value = computeArbitrage(input);
     // A new calculation invalidates any prior canary / entry outcome.
@@ -552,13 +637,21 @@ class ArbitrageCalculatorWm
   /// order is in flight so the plan can't shift under a running entry.
   void _refreshPlanAndFills() {
     if (_entryBusy.value) return;
-    final q1 = _quote1.value;
-    final q2 = _quote2.value;
-    if (q1 == null || q2 == null) return;
-    // Long the cheaper leg — same orientation the calculation uses.
-    final leg1IsLong = q1.mid <= q2.mid;
-    _updateFills(leg1IsLong);
-    _buildEntryPlan(leg1IsLong);
+    if (_quote1.value == null || _quote2.value == null) return;
+    _updateFills(_leg1IsLong);
+    _buildEntryPlan(_leg1IsLong);
+  }
+
+  /// Which leg the plan goes long: the orientation the chart locked when the
+  /// pair was selected (or the one the screener signal pinned), so the order
+  /// preview can't contradict the line the user is looking at. Falls back to
+  /// the cheaper leg while the orientation is still unlocked.
+  bool get _leg1IsLong {
+    final locked = _buyIsExchange1.value;
+    if (locked != null) return locked;
+    final mid1 = _quote1.value?.mid ?? 0;
+    final mid2 = _quote2.value?.mid ?? 0;
+    return mid1 <= mid2;
   }
 
   /// Builds the two-leg entry plan (sizes, limit prices, per-leg validity) from

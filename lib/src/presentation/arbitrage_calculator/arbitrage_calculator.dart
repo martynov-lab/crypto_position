@@ -11,12 +11,11 @@ import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
-  /// Compact form-only mode for embedding under an external spread chart
-  /// (screener): no coin search, exchange pickers or own chart.
-  final bool embedded;
-
   /// Pre-selected coin/venues applied once the catalog loads (screener signal:
-  /// exchange1 = long/buy leg, exchange2 = short/sell leg).
+  /// exchange1 = long/buy leg, exchange2 = short/sell leg). With [initialBase]
+  /// set the coin search is hidden — the coin came from the screener and the
+  /// screen's app bar already names it — but everything else, chart included,
+  /// is the same calculator as the standalone tab.
   final String? initialBase;
   final ExchangeId? initialExchange1;
   final ExchangeId? initialExchange2;
@@ -27,7 +26,6 @@ class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
 
   ArbitrageCalculator({
     super.key,
-    this.embedded = false,
     this.initialBase,
     this.initialExchange1,
     this.initialExchange2,
@@ -36,23 +34,6 @@ class ArbitrageCalculator extends ElementaryWidget<ArbitrageCalculatorWm> {
 
   @override
   Widget build(ArbitrageCalculatorWm wm) {
-    if (embedded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ArbitrageFundingPanel(wm: wm),
-          const SizedBox(height: 16),
-          _Inputs(wm: wm),
-          const SizedBox(height: 16),
-          _CalcButton(wm: wm),
-          const SizedBox(height: 16),
-          _Results(wm: wm),
-          _SlippagePanel(wm: wm),
-          _EntryPanel(wm: wm),
-          _ErrorText(wm: wm),
-        ],
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         // Wide (desktop): settings on the left, live chart on the right.
@@ -80,8 +61,10 @@ class _NarrowLayout extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _CoinSearch(wm: wm),
-        const SizedBox(height: 16),
+        if (!wm.coinFixed) ...[
+          _CoinSearch(wm: wm),
+          const SizedBox(height: 16),
+        ],
         _ExchangePickers(wm: wm),
         const SizedBox(height: 16),
         _LiveSection(wm: wm, chartHeight: 300),
@@ -112,8 +95,10 @@ class _WideLayout extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _CoinSearch(wm: wm),
-              const SizedBox(height: 16),
+              if (!wm.coinFixed) ...[
+                _CoinSearch(wm: wm),
+                const SizedBox(height: 16),
+              ],
               _ExchangePickers(wm: wm),
               const SizedBox(height: 16),
               _Inputs(wm: wm),
@@ -338,6 +323,7 @@ class _LiveSection extends StatelessWidget {
                       wm.spreadSeries,
                       wm.timeframeMin,
                       wm.buyIsExchange1,
+                      wm.historyEndsMs,
                     ]),
                     builder: (context, _) {
                       // The legend follows the chart's locked orientation, so
@@ -347,6 +333,7 @@ class _LiveSection extends StatelessWidget {
                         timeframeMin: wm.timeframeMin.value,
                         buyLabel: wm.buyExchange?.label,
                         sellLabel: wm.sellExchange?.label,
+                        historyEndsMs: wm.historyEndsMs.value,
                       );
                     },
                   ),

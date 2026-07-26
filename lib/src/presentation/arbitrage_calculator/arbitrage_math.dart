@@ -205,6 +205,21 @@ double nativeOrderQty({
   return roundQty(baseQty / contractSize, step: qtyStep, minQty: minQty);
 }
 
+/// The spread a trade would actually get right now: buy the long leg at its
+/// **ask**, sell the short leg into its **bid**. Quoted off the buy price, so a
+/// live opportunity reads positive.
+///
+/// Mid-to-mid would systematically overstate the edge by half of each venue's
+/// book spread — which is exactly the gap that made the chart disagree with the
+/// screener's VWAP-based signal. Falls back to a leg's mid when that side of its
+/// book is missing, and returns null when there is no usable buy price.
+double? executableSpreadPct({required Quote buy, required Quote sell}) {
+  final buyAsk = buy.ask > 0 ? buy.ask : buy.mid;
+  final sellBid = sell.bid > 0 ? sell.bid : sell.mid;
+  if (buyAsk <= 0 || sellBid <= 0) return null;
+  return (sellBid - buyAsk) / buyAsk * 100;
+}
+
 /// One historical spread point: the percent premium of leg 2 over leg 1 at
 /// [tsMs].
 class SpreadPoint {
@@ -218,6 +233,11 @@ class SpreadPoint {
 /// over [leg1] at each shared bucket, oldest first. Timestamps present on only
 /// one exchange are dropped, so a venue that lists the coin later simply
 /// shortens the history rather than skewing it.
+///
+/// Candles only carry a close, so this is a close-to-close spread while the
+/// live series is [executableSpreadPct] (ask→bid). The seeded history therefore
+/// reads slightly wider than the live part by about half of each venue's book
+/// spread; the chart marks where the two meet.
 List<SpreadPoint> spreadHistory(List<Candle> leg1, List<Candle> leg2) {
   final byTs2 = {for (final c in leg2) c.tsMs: c.close};
   final out = <SpreadPoint>[];

@@ -25,12 +25,19 @@ class SpreadLineChart extends StatefulWidget {
   final String? buyLabel;
   final String? sellLabel;
 
+  /// Where the candle-seeded history ends and the live ask→bid samples begin.
+  /// Marked with a dotted vertical line: the seeded part is close-to-close, so
+  /// it reads a touch wider than the live part and the step at the seam is
+  /// expected rather than a data glitch.
+  final int? historyEndsMs;
+
   const SpreadLineChart({
     super.key,
     required this.series,
     required this.timeframeMin,
     this.buyLabel,
     this.sellLabel,
+    this.historyEndsMs,
   });
 
   @override
@@ -58,6 +65,8 @@ const _lineColor = Color(0xFF2BD5A5);
 const _buyColor = Color(0xFF2BD576);
 const _sellColor = Color(0xFFF6465D);
 const _crosshair = Color(0xB3FFFFFF);
+const _seam = Color(0x66E8C34D);
+const _seamText = Color(0xAAE8C34D);
 
 /// Fixed dotted reference levels (percent) and their colors.
 const _refLevels = <(double, Color)>[
@@ -166,6 +175,7 @@ class _SpreadLineChartState extends State<SpreadLineChart> {
                 geom: geom,
                 buyLabel: widget.buyLabel,
                 sellLabel: widget.sellLabel,
+                historyEndsMs: widget.historyEndsMs,
                 cursor: _cursor,
               ),
             ),
@@ -399,6 +409,7 @@ class _ChartPainter extends CustomPainter {
   final _ChartGeometry geom;
   final String? buyLabel;
   final String? sellLabel;
+  final int? historyEndsMs;
   final Offset? cursor;
 
   _ChartPainter({
@@ -406,6 +417,7 @@ class _ChartPainter extends CustomPainter {
     required this.geom,
     required this.buyLabel,
     required this.sellLabel,
+    required this.historyEndsMs,
     required this.cursor,
   });
 
@@ -428,6 +440,7 @@ class _ChartPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(plot);
     _drawAreaAndLine(canvas, plot);
+    _drawHistorySeam(canvas, plot);
     canvas.restore();
 
     _drawLegend(canvas, plot);
@@ -573,6 +586,26 @@ class _ChartPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke,
     );
+  }
+
+  /// Dotted vertical line where the seeded candle history hands over to the
+  /// live samples, labelled so the step there doesn't read as a glitch.
+  void _drawHistorySeam(Canvas canvas, Rect plot) {
+    final ts = historyEndsMs;
+    if (ts == null || ts < geom.minX || ts > geom.maxX) return;
+    final x = _xToPx(plot, ts.toDouble());
+    _dashedSegment(
+      canvas,
+      Offset(x, plot.top),
+      Offset(x, plot.bottom),
+      Paint()
+        ..color = _seam
+        ..strokeWidth = 1,
+      dash: 3,
+      gap: 5,
+    );
+    final tp = _layout('живые данные →', _seamText, 9, FontWeight.w500);
+    tp.paint(canvas, Offset(x + 4, plot.bottom - tp.height - 2));
   }
 
   /// Rounded tag on the value ruler marking the latest spread, level with where
@@ -791,6 +824,7 @@ class _ChartPainter extends CustomPainter {
       old.spots != spots ||
       old.buyLabel != buyLabel ||
       old.sellLabel != sellLabel ||
+      old.historyEndsMs != historyEndsMs ||
       old.cursor != cursor ||
       old.geom.minX != geom.minX ||
       old.geom.maxX != geom.maxX ||

@@ -74,22 +74,6 @@ class ScreenerService {
 
   ClientConfig get clientConfig => _client.clientConfig;
 
-  /// Opens a live spread-chart watch for [instrument], pinned to the
-  /// [longExchange]/[shortExchange] pair (from the tapped signal). The caller
-  /// owns the returned controller and MUST call `dispose()` (sends `unwatch`).
-  SpreadChartController watchInstrument(
-    Instrument instrument, {
-    int windowMs = 900000,
-    String? longExchange,
-    String? shortExchange,
-  }) => SpreadChartController(
-    _client,
-    instrument: instrument,
-    windowMs: windowMs,
-    longExchange: longExchange,
-    shortExchange: shortExchange,
-  );
-
   void init() {
     _eventSub = _client.events.listen(_onEvent);
     _errorSub = _client.errors.listen((message) => _error.value = message);
@@ -111,19 +95,6 @@ class ScreenerService {
   Future<Result<ConfigValidation, Object>> validateConfig(
     ClientConfig config,
   ) => _rest.validateConfig(config);
-
-  /// `GET /spread/range` — up to several days of per-minute min/max/close
-  /// spread history for [instrument] ("how wide does this coin's spread even
-  /// get"). Omitting [windowMs] returns the client config's `history_window_ms`.
-  Future<Result<SpreadRange, Object>> fetchSpreadRange(
-    Instrument instrument, {
-    int? windowMs,
-  }) =>
-      _rest.fetchSpreadRange(
-        base: instrument.base,
-        quote: instrument.quote,
-        windowMs: windowMs,
-      );
 
   Future<void> refreshSummary() async {
     final result = await _rest.fetchSummary();

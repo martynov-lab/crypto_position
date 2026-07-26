@@ -60,8 +60,9 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                   isFavorite: wm.isFavorite,
                   onToggleFavorite: wm.toggleFavorite,
                   onRefresh: wm.refreshSummary,
-                  // No pinned pair from the catalog: the server picks the best
-                  // one, and the chart screen lets the user change it.
+                  // No pinned pair from the catalog: the chart screen opens on
+                  // the first two listed venues it can price, and the pickers
+                  // let the user change them.
                   onTap: (context, coverage) => context.push(
                     '/coin',
                     extra: CoinChartArgs(
@@ -70,6 +71,7 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                         quote: coverage.quote,
                         kind: 'perp',
                       ),
+                      venues: coverage.exchanges,
                     ),
                   ),
                 ),
