@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:crypto_position/src/favorites/favorite_coins_store.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen.dart';
 import 'package:crypto_position/src/presentation/screener/screener_screen_model.dart';
 import 'package:crypto_position/src/screener_service.dart';
@@ -17,6 +18,7 @@ import 'package:screener/screener.dart';
 class ScreenerScreenWm
     extends WidgetModel<ScreenerScreen, ScreenerScreenModel> {
   final ScreenerService _service;
+  final FavoriteCoinsStore _favorites;
 
   /// A signal freezes the spread of the moment it fired, so the cards would
   /// keep showing a number that has long moved on. `/summary` is the only
@@ -26,8 +28,12 @@ class ScreenerScreenWm
 
   Timer? _summaryTimer;
 
-  ScreenerScreenWm(super.model, {required ScreenerService service})
-      : _service = service;
+  ScreenerScreenWm(
+    super.model, {
+    required ScreenerService service,
+    required FavoriteCoinsStore favorites,
+  })  : _service = service,
+        _favorites = favorites;
 
   ValueListenable<WsConnectionState> get connectionState =>
       _service.connectionState;
@@ -41,6 +47,13 @@ class ScreenerScreenWm
   Listenable get filters => _service.effectiveConfig;
 
   ClientConfig get clientConfig => _service.clientConfig;
+
+  /// Rebuild trigger for the starred coins; read the flags via [isFavorite].
+  Listenable get favorites => _favorites;
+
+  bool isFavorite(String pair) => _favorites.isFavorite(pair);
+
+  void toggleFavorite(String pair) => _favorites.toggle(pair);
 
   /// Exchanges currently switched on in the filters (all of them when the
   /// config leaves `exchanges` unset).
@@ -77,5 +90,6 @@ ScreenerScreenWm screenerScreenWmFactory({required BuildContext context}) {
   return ScreenerScreenWm(
     ScreenerScreenModel(),
     service: context.read<ScreenerService>(),
+    favorites: context.read<FavoriteCoinsStore>(),
   );
 }

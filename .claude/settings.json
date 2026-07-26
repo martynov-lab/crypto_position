@@ -89,7 +89,10 @@
       "PowerShell($b = [System.IO.File]::ReadAllBytes\\('c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\assets\\\\flutter-icons\\\\lemonade_icons_icons.dart'\\)[0..7]; \\($b | ForEach-Object { $_.ToString\\('X2'\\) }\\) -join ' ')",
       "PowerShell($f='c:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position\\\\assets\\\\flutter-icons\\\\lemonade_icons_icons.dart'; \\(Get-Item $f\\).Length; \\(Get-Content $f | Measure-Object -Maximum -Property Length\\).Maximum)",
       "PowerShell(Set-Location C:\\\\Users\\\\arovit\\\\Projects\\\\crypto_position; foreach \\($p in @\\('okx','bybit','bitget','gate','mexc','network','core','screener'\\)\\) { Write-Output \"=== $p ===\"; Push-Location \"packages/$p\"; flutter test 2>&1 | Select-Object -Last 2; Pop-Location })",
-      "PowerShell(flutter analyze lib packages/screener 2>&1)"
+      "PowerShell(flutter analyze lib packages/screener 2>&1)",
+      "PowerShell(flutter analyze lib test 2>&1)",
+      "PowerShell(git stash push --include-untracked -q)",
+      "PowerShell(git stash pop -q)"
     ]
   }
 }

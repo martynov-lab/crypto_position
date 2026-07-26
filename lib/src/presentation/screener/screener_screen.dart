@@ -56,6 +56,9 @@ class ScreenerScreen extends ElementaryWidget<ScreenerScreenWm> {
                   summary: wm.summary,
                   filters: wm.filters,
                   enabledExchanges: () => wm.enabledExchanges,
+                  favorites: wm.favorites,
+                  isFavorite: wm.isFavorite,
+                  onToggleFavorite: wm.toggleFavorite,
                   onRefresh: wm.refreshSummary,
                   // No pinned pair from the catalog: the server picks the best
                   // one, and the chart screen lets the user change it.

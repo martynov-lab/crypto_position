@@ -2,6 +2,7 @@ import 'package:crypto_position/src/presentation/screener/widgets/universe_view.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:screener/screener.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 InstrumentCoverage _coverage(String base, List<String> exchanges) =>
     InstrumentCoverage(
@@ -20,12 +21,28 @@ SummaryEntry _summary(String pair, String buy, String sell, String netPct) =>
       coverage: 2,
     );
 
+/// In-memory stand-in for the persisted favourites store.
+class _Favorites extends ChangeNotifier {
+  final Set<String> pairs;
+
+  _Favorites([Set<String>? pairs]) : pairs = pairs ?? {};
+
+  bool contains(String pair) => pairs.contains(pair);
+
+  void toggle(String pair) {
+    if (!pairs.remove(pair)) pairs.add(pair);
+    notifyListeners();
+  }
+}
+
 Future<InstrumentCoverage?> _pump(
   WidgetTester tester, {
   required List<InstrumentCoverage> universe,
   required List<SummaryEntry> summary,
   required Set<String> enabled,
+  _Favorites? favorites,
 }) async {
+  final starred = favorites ?? _Favorites();
   InstrumentCoverage? tapped;
   await tester.pumpWidget(
     MaterialApp(
@@ -35,6 +52,9 @@ Future<InstrumentCoverage?> _pump(
           summary: ValueNotifier(summary),
           filters: ValueNotifier<Object?>(null),
           enabledExchanges: () => enabled,
+          favorites: starred,
+          isFavorite: starred.contains,
+          onToggleFavorite: starred.toggle,
           onRefresh: () async {},
           onTap: (_, coverage) => tapped = coverage,
         ),
@@ -135,6 +155,7 @@ void main() {
     });
 
     testWidgets('tapping a card reports the coin', (tester) async {
+      final starred = _Favorites();
       InstrumentCoverage? tapped;
       await tester.pumpWidget(
         MaterialApp(
@@ -146,6 +167,9 @@ void main() {
               summary: ValueNotifier(const []),
               filters: ValueNotifier<Object?>(null),
               enabledExchanges: () => {'bybit', 'okx'},
+              favorites: starred,
+              isFavorite: starred.contains,
+              onToggleFavorite: starred.toggle,
               onRefresh: () async {},
               onTap: (_, coverage) => tapped = coverage,
             ),
@@ -157,6 +181,64 @@ void main() {
       await tester.pump();
 
       expect(tapped?.pair, 'QNT/USDT');
+    });
+
+    testWidgets('the star toggles the coin and swaps the icon', (tester) async {
+      final starred = _Favorites();
+      await _pump(
+        tester,
+        universe: [
+          _coverage('QNT', ['bybit', 'okx']),
+        ],
+        summary: const [],
+        enabled: {'bybit', 'okx'},
+        favorites: starred,
+      );
+
+      expect(find.byIcon(AppIcons.star_outlined_24), findsOne);
+
+      await tester.tap(find.byIcon(AppIcons.star_outlined_24));
+      await tester.pump();
+
+      expect(starred.pairs, {'QNT/USDT'});
+      expect(find.byIcon(AppIcons.star_filled_24), findsOne);
+      expect(find.byIcon(AppIcons.star_outlined_24), findsNothing);
+    });
+
+    testWidgets('the favourites filter keeps only starred coins',
+        (tester) async {
+      await _pump(
+        tester,
+        universe: [
+          _coverage('ARB', ['bybit', 'okx']),
+          _coverage('QNT', ['bybit', 'okx']),
+        ],
+        summary: const [],
+        enabled: {'bybit', 'okx'},
+        favorites: _Favorites({'QNT/USDT'}),
+      );
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Избранные'));
+      await tester.pump();
+
+      expect(find.text('QNT/USDT'), findsOne);
+      expect(find.text('ARB/USDT'), findsNothing);
+    });
+
+    testWidgets('the favourites filter reports an empty set', (tester) async {
+      await _pump(
+        tester,
+        universe: [
+          _coverage('QNT', ['bybit', 'okx']),
+        ],
+        summary: const [],
+        enabled: {'bybit', 'okx'},
+      );
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Избранные'));
+      await tester.pump();
+
+      expect(find.text('Нет избранных монет'), findsOne);
     });
   });
 }

@@ -19,6 +19,12 @@ class UniverseView extends StatefulWidget {
   final Listenable filters;
   final Set<String> Function() enabledExchanges;
 
+  /// Notifies when the starred coins change. Read [isFavorite] fresh on each
+  /// build; [onToggleFavorite] stars/unstars the pair.
+  final Listenable favorites;
+  final bool Function(String pair) isFavorite;
+  final void Function(String pair) onToggleFavorite;
+
   /// Pull-to-refresh for the `/summary` snapshot the spread column comes from
   /// (it is fetched on connect only, so it goes stale while the tab is open).
   final Future<void> Function() onRefresh;
@@ -31,6 +37,9 @@ class UniverseView extends StatefulWidget {
     required this.summary,
     required this.filters,
     required this.enabledExchanges,
+    required this.favorites,
+    required this.isFavorite,
+    required this.onToggleFavorite,
     required this.onRefresh,
     required this.onTap,
   });
@@ -43,6 +52,7 @@ class _UniverseViewState extends State<UniverseView> {
   final _controller = TextEditingController();
   String _query = '';
   _Sort _sort = _Sort.spread;
+  bool _onlyFavorites = false;
 
   @override
   void dispose() {
@@ -76,9 +86,12 @@ class _UniverseViewState extends State<UniverseView> {
                 setState(() => _query = value.trim().toUpperCase()),
           ),
         ),
-        _SortSelector(
-          current: _sort,
-          onSelect: (sort) => setState(() => _sort = sort),
+        _ChipBar(
+          sort: _sort,
+          onSelectSort: (sort) => setState(() => _sort = sort),
+          onlyFavorites: _onlyFavorites,
+          onToggleOnlyFavorites: (value) =>
+              setState(() => _onlyFavorites = value),
         ),
         Expanded(
           child: ListenableBuilder(
@@ -86,15 +99,18 @@ class _UniverseViewState extends State<UniverseView> {
               widget.universe,
               widget.summary,
               widget.filters,
+              widget.favorites,
             ]),
             builder: (context, _) {
               final rows = _rows();
               if (rows.isEmpty) {
                 return Center(
                   child: Text(
-                    widget.universe.value.isEmpty
-                        ? 'Каталог пуст'
-                        : 'Ничего не найдено',
+                    switch (_onlyFavorites) {
+                      true => 'Нет избранных монет',
+                      false when widget.universe.value.isEmpty => 'Каталог пуст',
+                      false => 'Ничего не найдено',
+                    },
                   ),
                 );
               }
@@ -105,6 +121,9 @@ class _UniverseViewState extends State<UniverseView> {
                   itemCount: rows.length,
                   itemBuilder: (context, index) => _CoverageTile(
                     row: rows[index],
+                    favorite: widget.isFavorite(rows[index].coverage.pair),
+                    onToggleFavorite: () =>
+                        widget.onToggleFavorite(rows[index].coverage.pair),
                     onTap: () => widget.onTap(context, rows[index].coverage),
                   ),
                 ),
@@ -128,6 +147,7 @@ class _UniverseViewState extends State<UniverseView> {
       if (_query.isNotEmpty && !coverage.base.toUpperCase().contains(_query)) {
         continue;
       }
+      if (_onlyFavorites && !widget.isFavorite(coverage.pair)) continue;
       final venues = coverage.exchanges.where(enabled.contains).toList();
       if (venues.length < 2) continue;
       // The summary's best pair can sit on a venue the user switched off — its
@@ -175,33 +195,47 @@ class _Row {
   double? get netSort => double.tryParse(summary?.netPct ?? '');
 }
 
-class _SortSelector extends StatelessWidget {
-  final _Sort current;
-  final ValueChanged<_Sort> onSelect;
+/// Ordering chips plus the favourites-only filter. Wraps instead of scrolling
+/// so all of it stays reachable on a narrow screen.
+class _ChipBar extends StatelessWidget {
+  final _Sort sort;
+  final ValueChanged<_Sort> onSelectSort;
+  final bool onlyFavorites;
+  final ValueChanged<bool> onToggleOnlyFavorites;
 
-  const _SortSelector({required this.current, required this.onSelect});
+  const _ChipBar({
+    required this.sort,
+    required this.onSelectSort,
+    required this.onlyFavorites,
+    required this.onToggleOnlyFavorites,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 6,
+        runSpacing: 6,
         children: [
-          for (final (sort, label) in const [
+          for (final (value, label) in const [
             (_Sort.spread, 'По спреду'),
             (_Sort.coverage, 'По площадкам'),
             (_Sort.name, 'По названию'),
           ])
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: ChoiceChip(
-                label: Text(label),
-                selected: current == sort,
-                visualDensity: VisualDensity.compact,
-                onSelected: (_) => onSelect(sort),
-              ),
+            ChoiceChip(
+              label: Text(label),
+              selected: sort == value,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => onSelectSort(value),
             ),
+          FilterChip(
+            label: const Text('Избранные'),
+            selected: onlyFavorites,
+            visualDensity: VisualDensity.compact,
+            onSelected: onToggleOnlyFavorites,
+          ),
         ],
       ),
     );
@@ -210,9 +244,16 @@ class _SortSelector extends StatelessWidget {
 
 class _CoverageTile extends StatelessWidget {
   final _Row row;
+  final bool favorite;
+  final VoidCallback onToggleFavorite;
   final VoidCallback onTap;
 
-  const _CoverageTile({required this.row, required this.onTap});
+  const _CoverageTile({
+    required this.row,
+    required this.favorite,
+    required this.onToggleFavorite,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +279,22 @@ class _CoverageTile extends StatelessWidget {
                     _PercentLabel(fraction: summary.netPct),
                     const SizedBox(width: 8),
                   ],
-                  Text('${row.venues.length} площадок'),
+                  IconButton(
+                    icon: Icon(
+                      favorite
+                          ? AppIcons.star_filled_24
+                          : AppIcons.star_outlined_24,
+                      size: 20,
+                      color: favorite
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: favorite ? 'Убрать из избранного' : 'В избранное',
+                    onPressed: onToggleFavorite,
+                  ),
                 ],
               ),
               if (summary != null) ...[

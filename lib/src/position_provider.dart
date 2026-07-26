@@ -12,6 +12,7 @@ import 'package:crypto_position/src/okx_account_repository_factory.dart';
 import 'package:crypto_position/src/okx_session_service.dart';
 import 'package:gate/gate.dart';
 import 'package:mexc/mexc.dart';
+import 'package:crypto_position/src/favorites/favorite_coins_store.dart';
 import 'package:crypto_position/src/fees/fee_settings_store.dart';
 import 'package:crypto_position/src/market_data/bitget_market_data.dart';
 import 'package:crypto_position/src/market_data/bybit_market_data.dart';
@@ -152,6 +153,10 @@ class PositionProvider extends StatelessWidget {
       ChangeNotifierProvider<FeeSettingsStore>(
         create: (context) =>
             FeeSettingsStore(context.read<SharedPreferencesHelper>())..load(),
+      ),
+      ChangeNotifierProvider<FavoriteCoinsStore>(
+        create: (context) =>
+            FavoriteCoinsStore(context.read<SharedPreferencesHelper>())..load(),
       ),
       Provider<MarketDataRegistry>(
         create: (context) => MarketDataRegistry(
